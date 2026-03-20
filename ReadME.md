@@ -1,6 +1,6 @@
 # Windows Event Template Explorer — User Guide
 
-Version covered: **Schema-aware MITRE + Helix v1.18**
+Version covered: **Schema-aware MITRE + SIEM**
 
 ## What this app does
 
@@ -8,8 +8,8 @@ This single-page web app lets you load Windows event template data and explore i
 
 - **Windows event message templates** from JSON or single-entry ZIP files
 - **MITRE ATT&CK detection strategy mappings** embedded in the message object
-- **HELIX rules** from JSON
-- **HELIX field taxonomy** from CSV
+- **SIEM rules** from JSON
+- **SIEM field taxonomy** from CSV
 - **Custom field mappings** you create inside the app and export/import as JSON
 
 It is designed for detection engineering, parsing design, ATT&CK coverage analysis, and Windows telemetry research.
@@ -21,7 +21,7 @@ It is designed for detection engineering, parsing design, ATT&CK coverage analys
 1. Open the HTML file in a browser.
 2. Click **Import templates JSON / ZIP** and load your Windows message template object.
 3. Optionally load:
-   - **Import rules JSON** for HELIX rule decoration
+   - **Import rules JSON** for SIEM rule decoration
    - **Import taxonomy CSV** for field transform / taxonomy mapping
 4. Use the **Global search** bar or the left-side filters to narrow results.
 5. Click any row in the table to open the event detail drawer.
@@ -93,12 +93,12 @@ The app normalizes newer schema fields when present, including values like:
 - extraction or load errors
 - additional schema keys
 
-### 2) HELIX taxonomy CSV
+### 2) SIEM taxonomy CSV
 Use **Import taxonomy CSV**.
 
 This enables field transform / taxonomy mapping controls inside the event drawer.
 
-### 3) HELIX rules JSON
+### 3) SIEM rules JSON
 Use **Import rules JSON**.
 
 The app decorates rows and event details with matched CA rules and indexes rule metadata for search.
@@ -155,7 +155,7 @@ For some filters you can toggle:
 ### Template health
 - **Only records with extraction / load errors**
 
-### HELIX enrichment
+### SIEM enrichment
 - **Only templates with rule matches**
 
 ### MITRE ATT&CK
@@ -233,7 +233,7 @@ If the loaded object has extra top-level keys beyond the modeled structure, they
 
 ---
 
-## HELIX rules in the drawer
+## SIEM rules in the drawer
 
 If rules are loaded and matched, the drawer includes a **Rules (CA)** section.
 
@@ -259,9 +259,9 @@ All of the above are searchable through **Global search**.
 
 ## Field transforms / taxonomy mapping
 
-If taxonomy CSV is loaded, the drawer includes a **Field transforms (HELIX taxonomy)** section.
+If taxonomy CSV is loaded, the drawer includes a **Field transforms (SIEM taxonomy)** section.
 
-You can use it to map Windows template fields to HELIX taxonomy fields.
+You can use it to map Windows template fields to SIEM taxonomy fields.
 
 ### Typical workflow
 1. Load taxonomy CSV.
@@ -404,7 +404,7 @@ Some UI preferences are remembered in `localStorage`, such as:
 2. Search by rule content, tag, severity, or technique.
 3. Open candidate events.
 4. Compare event message structure to rule search and tuning search.
-5. Use taxonomy mapping to align extracted fields to HELIX.
+5. Use taxonomy mapping to align extracted fields to SIEM.
 
 ### ATT&CK strategy validation
 1. Open an event with MITRE mappings.
@@ -452,4 +452,4 @@ Use **Hide filters** and, on large screens, widen the event drawer only as much 
 
 ## In one sentence
 
-This app is a browser-based workbench for exploring Windows event templates, linking them to MITRE ATT&CK detection strategy content, decorating them with HELIX rules, and mapping parser output to a HELIX field taxonomy.
+This app is a browser-based workbench for exploring Windows event templates, linking them to MITRE ATT&CK detection strategy content, decorating them with SIEM rules, and mapping parser output to a SIEM field taxonomy.
