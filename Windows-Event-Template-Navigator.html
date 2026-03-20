@@ -1,0 +1,2681 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Windows Event Template Explorer (Schema-aware MITRE)</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #111a2b;
+      --panel2: #162235;
+      --text: #e7eefb;
+      --muted: #96a7c0;
+      --border: rgba(255,255,255,0.10);
+      --accent: #59c3ff;
+      --accent2: #88f1cf;
+      --good: #57d19a;
+      --warn: #f6c453;
+      --danger: #ff8080;
+      --shadow: 0 12px 34px rgba(0,0,0,0.28);
+      --drawer-width: min(760px, 92vw);
+      --drawer-reserved: 0px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      font-family: var(--sans);
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(89,195,255,0.10), transparent 28%),
+        radial-gradient(circle at top right, rgba(136,241,207,0.08), transparent 24%),
+        linear-gradient(180deg, #0b1220, #09101b 58%, #08101a);
+    }
+    header {
+      position: sticky; top: 0; z-index: 10;
+      backdrop-filter: blur(16px);
+      background: rgba(11,18,32,0.82);
+      border-bottom: 1px solid var(--border);
+    }
+    .wrap { width: min(100%, calc(100vw - 24px)); max-width: 1560px; margin: 0 auto; padding: 14px 16px; transition: max-width 0.18s ease, margin 0.18s ease, padding 0.18s ease; }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .title { font-size: 18px; font-weight: 800; letter-spacing: 0.2px; margin-right: 8px; }
+    .pill, .chip, .ruleId, .ruleBadge {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      border-radius: 999px;
+    }
+    .pill { padding: 8px 12px; }
+    .chip { padding: 6px 10px; font-size: 12px; }
+    .chip strong { color: var(--muted); margin-right: 6px; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .status { font-size: 13px; color: var(--muted); }
+    .inline { display: inline-flex; gap: 8px; align-items: center; flex: 1 1 460px; max-width: 760px; }
+    .control, .btn, select, input, textarea {
+      font: inherit;
+      color: inherit;
+    }
+    .control {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      padding: 10px 12px;
+      outline: none;
+    }
+    .control:focus { border-color: rgba(89,195,255,0.55); box-shadow: 0 0 0 3px rgba(89,195,255,0.12); }
+    .control.sm { padding: 8px 10px; font-size: 12px; }
+    select.control, select.control.sm, select.field-map, select {
+      color-scheme: dark;
+      background-color: rgba(255,255,255,0.04);
+    }
+    select option, select optgroup {
+      background: #0f1726;
+      color: var(--text);
+    }
+    .mono { font-family: var(--mono); }
+    .btn {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      border-radius: 12px;
+      padding: 9px 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn:hover { background: rgba(255,255,255,0.08); }
+    .btn.primary { border-color: rgba(89,195,255,0.38); background: rgba(89,195,255,0.14); }
+    .btn.good { border-color: rgba(87,209,154,0.38); background: rgba(87,209,154,0.12); }
+    .btn.danger { border-color: rgba(255,128,128,0.38); background: rgba(255,128,128,0.12); }
+    .btn.disabled { opacity: 0.45; pointer-events: none; }
+    input[type="file"] { display: none; }
+
+    .contentLayout {
+      display: grid;
+      grid-template-columns: 340px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+      margin-top: 14px;
+      transition: grid-template-columns 0.18s ease, gap 0.18s ease;
+    }
+    .contentLayout.sidebarHidden { grid-template-columns: minmax(0, 1fr); }
+    .contentLayout.sidebarHidden .sidebar { display: none; }
+    @media (max-width: 1180px) { .contentLayout { grid-template-columns: 1fr; } }
+    body.viewport-wide .wrap {
+      max-width: calc(100vw - 28px);
+      margin-left: 14px;
+      margin-right: 14px;
+    }
+    body.viewport-wide .contentLayout {
+      grid-template-columns: minmax(300px, 20vw) minmax(0, 1fr);
+      gap: 18px;
+    }
+    body.viewport-wide .contentLayout.sidebarHidden { grid-template-columns: minmax(0, 1fr); }
+    body.viewport-wide .mainArea { min-width: 0; }
+    body.viewport-wide .tableWrap { min-height: 58vh; }
+    body.viewport-wide .col-fields { width: 290px; }
+    body.viewport-wide .col-hit { width: 360px; }
+    body.viewport-wide.drawer-open .wrap {
+      max-width: calc(100vw - var(--drawer-reserved, 0px) - 34px);
+      margin-left: 14px;
+      margin-right: auto;
+    }
+    body.viewport-ultra .contentLayout {
+      grid-template-columns: minmax(320px, 18vw) minmax(0, 1fr);
+    }
+    body.viewport-ultra.drawer-open .wrap {
+      max-width: calc(100vw - var(--drawer-reserved, 0px) - 34px);
+    }
+
+    .sidebar, .mainArea {
+      min-width: 0;
+    }
+    .mainArea { overflow: hidden; }
+    .card, table, .resultsBar, .drawerBody, .drawerHeader, .sidebarBox {
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03));
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+    }
+    .sidebarBox { padding: 14px; }
+    .sideGrid { display: grid; gap: 12px; }
+    .sideSubhead {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      font-weight: 800;
+    }
+    .sideSubhead:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+    .card { padding: 12px; }
+    .label { font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--muted); }
+    .hint, .small { font-size: 12px; color: var(--muted); }
+    .checkrow { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: var(--muted); }
+    .toggleRow { display: flex; gap: 10px; align-items: center; cursor: pointer; user-select: none; }
+    .toggleUi {
+      width: 38px; height: 22px; border-radius: 999px;
+      border: 1px solid var(--border); background: rgba(255,255,255,0.05); position: relative;
+      flex: 0 0 auto;
+    }
+    .toggleThumb {
+      width: 16px; height: 16px; border-radius: 50%; background: #dbeafe;
+      position: absolute; top: 2px; left: 3px; transition: transform 0.2s ease;
+    }
+    .toggleRow input:checked + .toggleUi .toggleThumb { transform: translateX(15px); }
+    .toggleRow input:checked + .toggleUi { background: rgba(89,195,255,0.22); }
+    .toggleRow input { display: none; }
+
+    .resultsBar {
+      display: flex; justify-content: space-between; gap: 12px; align-items: center;
+      padding: 12px 14px; margin-bottom: 12px;
+    }
+    .resultsBar .left, .resultsBar .right { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+    .resultsBar .left { min-width: 0; flex: 1 1 auto; }
+    .resultsBar .right { flex: 0 0 auto; }
+    .tableWrap {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      border-radius: 16px;
+    }
+    table {
+      width: 100%;
+      min-width: 0;
+      border-collapse: collapse;
+      overflow: hidden;
+      table-layout: fixed;
+    }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.07); vertical-align: top; overflow-wrap: anywhere; }
+    th { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px; }
+    tr:last-child td { border-bottom: 0; }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover { background: rgba(255,255,255,0.04); }
+    .col-id { width: 90px; }
+    .col-src { width: 150px; }
+    .col-prov { width: 220px; }
+    .col-fields { width: 250px; }
+    .col-rules, .col-mitre { width: 90px; }
+    .col-hit { width: 320px; }
+    .col-state { width: 92px; }
+    .stateBadge { display:inline-flex; align-items:center; justify-content:center; min-width:62px; padding:4px 9px; border-radius:999px; border:1px solid var(--border); font-size:11px; font-weight:700; }
+    .stateBadge.ready { border-color: rgba(87,209,154,0.35); background: rgba(87,209,154,0.10); color: rgba(87,209,154,0.95); }
+    .stateBadge.error { border-color: rgba(255,128,128,0.35); background: rgba(255,128,128,0.10); color: rgba(255,128,128,0.95); }
+    .stateBadge.sparse { border-color: rgba(246,196,83,0.35); background: rgba(246,196,83,0.10); color: rgba(246,196,83,0.98); }
+    .rowError td { opacity: 0.96; }
+    .extraList { display:grid; gap:10px; margin-top:8px; }
+    .extraItem { border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; background: rgba(255,255,255,0.03); padding: 10px 12px; }
+
+    .drawer {
+      position: fixed; inset: 0 0 0 auto; width: var(--drawer-width, min(760px, 92vw));
+      transform: translateX(100%); transition: transform 0.22s ease, width 0.18s ease;
+      background: rgba(7,12,20,0.92); backdrop-filter: blur(18px);
+      border-left: 1px solid var(--border); z-index: 30;
+      display: flex; flex-direction: column;
+      min-width: 420px;
+      max-width: 96vw;
+      overflow: hidden;
+    }
+    body.viewport-wide .drawer { min-width: 520px; }
+    body.viewport-ultra .drawer { min-width: 580px; }
+    .drawer.open { transform: translateX(0); }
+    .drawerResizeHandle {
+      position: absolute; left: 0; top: 0; bottom: 0; width: 14px;
+      cursor: col-resize; z-index: 2;
+      background: linear-gradient(90deg, rgba(89,195,255,0.16), rgba(89,195,255,0.04) 40%, transparent 85%);
+      opacity: 0.26; transition: opacity 0.16s ease, background 0.16s ease;
+    }
+    .drawerResizeHandle::after {
+      content: ''; position: absolute; left: 3px; top: 50%; transform: translateY(-50%);
+      width: 4px; height: 80px; border-radius: 999px; background: rgba(219,234,254,0.34);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.06);
+    }
+    .drawer:hover .drawerResizeHandle,
+    .drawer.resizing .drawerResizeHandle,
+    .drawerResizeHandle:hover {
+      opacity: 0.92;
+      background: linear-gradient(90deg, rgba(89,195,255,0.22), rgba(89,195,255,0.08) 48%, transparent 90%);
+    }
+    .drawerHeader { margin: 14px 14px 14px 18px; padding: 14px; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .drawerBody { margin: 0 14px 14px; padding: 14px; overflow: auto; min-height: 0; flex: 1; }
+    .sectionTitle {
+      margin-top: 16px; font-size: 12px; color: var(--muted); font-weight: 800;
+      letter-spacing: 0.5px; text-transform: uppercase;
+    }
+    .kv {
+      display: grid; grid-template-columns: 140px 1fr; gap: 8px 12px;
+      margin-bottom: 12px;
+    }
+    .k { color: var(--muted); font-size: 12px; }
+    pre {
+      margin: 8px 0 0;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.03);
+      padding: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .ruleList { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+    details.ruleCard {
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.03);
+      overflow: hidden;
+    }
+    details.ruleCard summary { list-style: none; }
+    details.ruleCard summary::-webkit-details-marker { display: none; }
+    .ruleSummary {
+      display: grid; grid-template-columns: auto 1fr auto; gap: 10px;
+      align-items: center; padding: 10px 12px; cursor: pointer;
+    }
+    .ruleSummary:hover { background: rgba(255,255,255,0.03); }
+    .ruleId { padding: 5px 10px; font-size: 12px; color: var(--muted); }
+    .ruleBadge { padding: 4px 8px; font-size: 11px; color: var(--muted); }
+    .ruleBadge.on { border-color: rgba(87,209,154,0.35); background: rgba(87,209,154,0.10); color: rgba(87,209,154,0.95); }
+    .ruleBadge.off { border-color: rgba(255,128,128,0.35); background: rgba(255,128,128,0.10); color: rgba(255,128,128,0.95); }
+    .ruleBadge.neutral { border-color: var(--line); background: rgba(255,255,255,0.04); color: var(--text); }
+    .ruleBadges { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+    .ruleSummaryMain { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+    .ruleSummaryText { min-width: 0; display: flex; align-items: center; gap: 10px; flex: 1; }
+    .ruleMetaList { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ruleMetaChip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 11px; color: var(--muted); background: rgba(255,255,255,0.03); }
+    .ruleMetaChip strong { color: var(--text); font-weight: 600; }
+    .ruleMsg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+    .ruleBody { border-top: 1px solid rgba(255,255,255,0.08); padding: 12px; }
+    .ruleKv { display: grid; grid-template-columns: 120px 1fr; gap: 8px 12px; font-size: 12px; }
+    .miniTable { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .miniTable th, .miniTable td { padding: 8px 10px; }
+    .toast {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+      padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border);
+      background: rgba(9,14,25,0.94); box-shadow: var(--shadow); opacity: 0; pointer-events: none;
+      transition: opacity 0.18s ease; z-index: 50;
+    }
+    .toast.show { opacity: 1; }
+
+    .extLink { color: var(--accent); text-decoration: none; }
+    .extLink:hover { text-decoration: underline; }
+    .linkList { display: flex; flex-direction: column; gap: 6px; }
+    .tableSubline { display:block; margin-top:4px; font-size:12px; color: var(--muted); }
+    .hitList { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .hitItem { display: flex; gap: 8px; align-items: flex-start; min-width: 0; }
+    .hitChip {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 3px 8px; border-radius: 999px; border: 1px solid rgba(89,195,255,0.18);
+      background: rgba(89,195,255,0.08); color: #b8d9ff; font-size: 11px; font-weight: 700;
+      white-space: nowrap; flex: 0 0 auto;
+    }
+    .hitText { color: var(--muted); font-size: 12px; line-height: 1.4; min-width: 0; overflow-wrap: anywhere; }
+    .hitNone { color: var(--muted); font-size: 12px; opacity: 0.72; }
+
+    .searchbar { min-height: 44px; }
+    .chipAction, .mitreCardButton, .linkyCardButton {
+      appearance: none;
+      -webkit-appearance: none;
+      font: inherit;
+      color: inherit;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+    }
+    .chipAction {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+    }
+    .chipAction:hover,
+    .chipAction:focus-visible {
+      background: rgba(89,195,255,0.10);
+      border-color: rgba(89,195,255,0.28);
+      transform: translateY(-1px);
+      outline: none;
+    }
+    .chipAction strong { pointer-events: none; }
+    .mitreCardButton, .linkyCardButton { display: block; width: 100%; padding: 0; }
+    .mitreCardButton:hover .ruleSummary,
+    .mitreCardButton:focus-visible .ruleSummary,
+    .linkyCardButton:hover .ruleSummary,
+    .linkyCardButton:focus-visible .ruleSummary {
+      background: rgba(255,255,255,0.04);
+      outline: none;
+    }
+    .mitreCardMeta {
+      padding: 0 12px 12px 56px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .focusOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 70;
+      background: rgba(6,10,18,0.78);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(12px, 2vw, 24px);
+    }
+    .focusOverlay.open { display: flex; }
+    .focusPanel {
+      position: relative;
+      width: min(1320px, calc(100vw - 40px));
+      max-width: calc(100vw - 24px);
+      height: min(90vh, calc(100vh - 40px));
+      max-height: calc(100vh - 24px);
+      min-width: min(860px, calc(100vw - 24px));
+      min-height: 520px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: rgba(7,12,20,0.96);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      resize: both;
+    }
+    .focusPanel::after {
+      content: '';
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      width: 16px;
+      height: 16px;
+      opacity: 0.42;
+      pointer-events: none;
+      background:
+        linear-gradient(135deg, transparent 0 45%, rgba(89,195,255,0.40) 45% 54%, transparent 54% 100%),
+        linear-gradient(135deg, transparent 0 62%, rgba(89,195,255,0.28) 62% 70%, transparent 70% 100%),
+        linear-gradient(135deg, transparent 0 79%, rgba(89,195,255,0.18) 79% 86%, transparent 86% 100%);
+    }
+    @media (max-width: 980px) {
+      .focusOverlay {
+        padding: 10px;
+        align-items: stretch;
+      }
+      .focusPanel {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        height: calc(100vh - 20px);
+        max-height: calc(100vh - 20px);
+        min-height: 0;
+        resize: none;
+      }
+    }
+    .focusPanel .drawerHeader,
+    .focusPanel .drawerBody {
+      margin: 0;
+      border-radius: 0;
+      box-shadow: none;
+      border: 0;
+      background: transparent;
+    }
+    .focusPanel .drawerHeader {
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding: 16px 18px;
+    }
+    .focusPanel .drawerBody {
+      padding: 18px;
+      overflow: auto;
+    }
+    .focusSub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    .mitreFocusGrid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.9fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .mitreFocusMain,
+    .mitreFocusAside {
+      min-width: 0;
+    }
+    .mitreFocusAside {
+      position: sticky;
+      top: 0;
+      align-self: start;
+    }
+    .mitreFocusAsideCard {
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.02);
+      padding: 14px;
+    }
+    .mitreFocusAsideHead {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+    .mitreFocusAsideTitle {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+      color: var(--text);
+    }
+    .mitreFocusAsideMeta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .mitreFocusAside .ruleList {
+      margin-top: 12px;
+    }
+    @media (max-width: 1180px) {
+      .mitreFocusGrid {
+        grid-template-columns: 1fr;
+      }
+      .mitreFocusAside {
+        position: static;
+      }
+    }
+    .sectionCollapseSummary {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+    .sectionCollapseSummary:hover { background: rgba(255,255,255,0.03); }
+    .sectionCollapseBody { border-top: 1px solid rgba(255,255,255,0.08); padding: 12px; }
+    .sectionCollapseBody .chips { margin-top: 0; }
+    .headerTop {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .headerActions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .headerTop .title { flex: 0 1 auto; }
+    .headerTop .headerSearch {
+      flex: 1 1 520px;
+      min-width: min(100%, 360px);
+      max-width: none;
+      margin-left: auto;
+    }
+    body.viewport-wide .headerTop .headerSearch {
+      flex: 1 1 780px;
+      min-width: 420px;
+    }
+    body.viewport-wide .headerActions {
+      gap: 12px;
+    }
+    .headerTop .btn.primary { flex: 0 0 auto; }
+    .headerActions .pill { margin-left: 2px; }
+    .toolbarSpacer { flex: 1 1 20px; min-width: 20px; }
+    .headerSearch { flex: 0 1 640px; max-width: 640px; min-width: min(100%, 340px); }
+    @media (max-width: 980px) {
+      .headerTop .headerSearch { flex-basis: 100%; order: 3; margin-left: 0; }
+      .headerTop .btn.primary { order: 2; }
+    }
+    .mitreDetailStack { display: grid; gap: 10px; }
+    .mitreDetailBlock {
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.015));
+      padding: 10px 12px;
+    }
+    .mitreDetailHead { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+    .mitreDetailTitle { font-weight: 700; }
+    .mitreDetailMeta { color: var(--muted); font-size: 12px; }
+    .mitreDetailKv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; font-size: 12px; }
+    .mitreDetailKv .k { color: var(--muted); }
+    .mitreDetailKv pre { margin: 0; white-space: pre-wrap; }
+
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="headerTop">
+        <div class="title">Windows Event Template Explorer <span style="opacity:.68; font-weight:700;">(Schema-aware MITRE)</span></div>
+        <div class="inline headerSearch">
+          <input class="control sm mono searchbar" id="globalSearchInput" placeholder="Global search: EventId, provider, source, message, template fields, MITRE, rules, newer schema fields…" disabled />
+        </div>
+        <label class="btn primary" for="fileInput">Import templates JSON / ZIP</label>
+        <input id="fileInput" type="file" accept=".json,.zip,application/json,application/zip" />
+      </div>
+
+      <div class="headerActions">
+        <button class="btn" id="toggleSidebarBtn" aria-expanded="true" aria-controls="filtersSidebar">Hide filters</button>
+        <label class="btn" for="taxonomyInput">Import taxonomy CSV</label>
+        <input id="taxonomyInput" type="file" accept=".csv,text/csv" />
+        <label class="btn" for="rulesInput">Import rules JSON</label>
+        <input id="rulesInput" type="file" accept=".json,application/json" />
+        <button class="btn" id="clearBtn" disabled>Clear filters</button>
+        <button class="btn good" id="exportBtn" disabled>Export page CSV</button>
+        <button class="btn" id="exportMapBtn" disabled>Export mappings JSON</button>
+        <label class="btn" for="importMapInput" id="importMapBtn">Import mappings JSON</label>
+        <input id="importMapInput" type="file" accept=".json,application/json" />
+        <div class="pill"><div class="status" id="status">No templates loaded</div></div>
+      </div>
+
+      <div class="contentLayout">
+        <aside class="sidebar" id="filtersSidebar">
+          <div class="sidebarBox sideGrid">
+            <div class="sideSubhead">Filters</div>
+            <div class="card">
+              <div class="label">Provider</div>
+              <select class="control" id="providerSelect" disabled><option value="">Any</option></select>
+              <div class="checkrow">
+                <label><input type="checkbox" id="providerContains" checked /> Contains</label>
+                <label><input type="checkbox" id="providerCase" /> Case-sensitive</label>
+              </div>
+            </div>
+            <div class="card">
+              <div class="label">Source (channel)</div>
+              <select class="control" id="sourceSelect" disabled><option value="">Any</option></select>
+              <div class="checkrow">
+                <label><input type="checkbox" id="sourceContains" checked /> Contains</label>
+                <label><input type="checkbox" id="sourceCase" /> Case-sensitive</label>
+              </div>
+            </div>
+            <div class="card">
+              <div class="label">Event ID</div>
+              <input class="control mono" id="eventIdInput" placeholder="1000 or 1000,1001 or 1000-1010" disabled />
+            </div>
+            <div class="card">
+              <div class="label">Description</div>
+              <input class="control" id="descInput" placeholder="substring match against full Description" disabled />
+            </div>
+            <div class="card">
+              <div class="label">Any object text</div>
+              <input class="control mono" id="objectSearchInput" placeholder="event_identifier, qualifiers, level/task/opcode, sources, links, MITRE ids/names/descriptions, schema extras" disabled />
+              <div class="hint">Searches across the normalized schema object, including level/task/opcode metadata, sources/classic_sources, log links, top-level MITRE fields, strategy/analytic descriptions, mutable elements, and future schema extras.</div>
+            </div>
+
+            <div class="sideSubhead">Template health</div>
+            <div class="card">
+              <div class="label">Extraction diagnostics</div>
+              <label class="toggleRow">
+                <input type="checkbox" id="onlyErrorsToggle" disabled />
+                <span class="toggleUi"><span class="toggleThumb"></span></span>
+                <span>Only records with extraction / load errors</span>
+              </label>
+              <div class="small" id="errorCountHint" style="margin-top:8px;">Error records are shown automatically when present.</div>
+            </div>
+
+            <div class="sideSubhead">SIEM enrichment</div>
+            <div class="card">
+              <div class="label">SIEM rule coverage</div>
+              <label class="toggleRow">
+                <input type="checkbox" id="onlyEnrichedToggle" disabled />
+                <span class="toggleUi"><span class="toggleThumb"></span></span>
+                <span>Only templates with rule matches</span>
+              </label>
+              <div class="small" id="enrichedCountHint" style="margin-top:8px;">Load rules to enable.</div>
+            </div>
+
+            <div class="sideSubhead">MITRE ATT&amp;CK</div>
+            <div class="card">
+              <div class="label">MITRE ATT&amp;CK coverage</div>
+              <label class="toggleRow">
+                <input type="checkbox" id="onlyMitreToggle" disabled />
+                <span class="toggleUi"><span class="toggleThumb"></span></span>
+                <span>Only templates with MITRE mappings</span>
+              </label>
+              <div class="small" id="mitreCountHint" style="margin-top:8px;">Load a messages object that includes MITRE mappings.</div>
+            </div>
+            <div class="card">
+              <div class="label">MITRE text / IDs</div>
+              <input class="control mono" id="mitreInput" placeholder="TA0005, T1027, DET0189, AN0540, Application Log Content, EventCode=1000" disabled />
+              <div class="hint">Matches tactic, technique, sub-technique, detection strategy, analytic, data component, log source, channel, and platform fields.</div>
+            </div>
+
+            <div class="sideSubhead">Template fields</div>
+            <div class="card">
+              <div class="label">Template field names</div>
+              <input class="control mono" id="fieldsInput" placeholder="AppName,ProcessId" disabled />
+              <div class="checkrow">
+                <label><input type="checkbox" id="fieldsMatchAll" /> Require all tokens</label>
+                <label><input type="checkbox" id="fieldsCase" /> Case-sensitive</label>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <main class="mainArea">
+          <div class="resultsBar">
+            <div class="left">
+              <div class="small" id="counts">Templates: 0 | Matches: 0 | MITRE-covered: 0 | Errors: 0</div>
+              <button class="btn" id="viewErrorsBtn" disabled>View errors</button>
+              <div class="small" id="enrichCounts">Taxonomy: Not loaded | Rules: Not loaded | MITRE-covered events: 0 | Error rows: 0</div>
+              <div class="small mono" id="pageInfo">Page 1 / 1</div>
+            </div>
+            <div class="right">
+              <label class="small">Page size
+                <select class="control sm" id="pageSize" style="width:110px; display:inline-block;" disabled>
+                  <option value="50">50</option>
+                  <option value="100" selected>100</option>
+                  <option value="200">200</option>
+                  <option value="500">500</option>
+                </select>
+              </label>
+              <button class="btn" id="prevBtn" disabled>Prev</button>
+              <button class="btn" id="nextBtn" disabled>Next</button>
+            </div>
+          </div>
+
+          <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-id">EventId</th>
+                <th class="col-src">Source</th>
+                <th class="col-prov">Provider</th>
+                <th>Message</th>
+                <th class="col-fields">Template fields</th>
+                <th class="col-state">State</th>
+                <th class="col-hit">Search hit</th>
+                <th class="col-rules">Rules</th>
+                <th class="col-mitre">MITRE</th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody">
+              <tr><td colspan="9" class="small" style="padding:14px 12px;">Load a templates JSON or single-entry ZIP to begin. The page automatically uses MITRE ATT&amp;CK fields when present.</td></tr>
+            </tbody>
+          </table>
+          </div>
+        </main>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap"><div class="small" id="warning"></div></div>
+
+  <div class="drawer" id="drawer">
+    <div class="drawerResizeHandle" id="drawerResizeHandle" title="Drag to resize details panel" aria-hidden="true"></div>
+    <div class="drawerHeader">
+      <div>
+        <div id="drawerTitle" style="font-size:16px; font-weight:800;">Event details</div>
+        <div class="small" id="drawerSub"></div>
+      </div>
+      <div class="row">
+        <button class="btn" id="copyBtn">Copy details</button>
+        <button class="btn danger" id="closeDrawer">Close</button>
+      </div>
+    </div>
+    <div class="drawerBody" id="drawerBody"><div class="small">No event selected.</div></div>
+  </div>
+
+  <div class="focusOverlay" id="mitreFocusOverlay">
+    <div class="focusPanel">
+      <div class="drawerHeader">
+        <div>
+          <div id="mitreFocusTitle" style="font-size:16px; font-weight:800;">MITRE focus</div>
+          <div class="focusSub" id="mitreFocusSub"></div>
+        </div>
+        <div class="row">
+          <button class="btn" id="copyMitreBtn">Copy section</button>
+          <button class="btn danger" id="closeMitreFocus">Close</button>
+        </div>
+      </div>
+      <div class="drawerBody" id="mitreFocusBody"><div class="small">No MITRE section selected.</div></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+  (() => {
+    'use strict';
+    const $ = (id) => document.getElementById(id);
+    const state = {
+      events: [],
+      byKey: Object.create(null),
+      filtered: [],
+      page: 1,
+      pageSize: 100,
+      loadedCount: 0,
+      mitreCoveredCount: 0,
+      errorCount: 0,
+      rules: null,
+      taxonomy: null,
+      mapping: loadMapping(),
+      lastItems: [],
+      _lastDetailItem: null,
+      lastDetailText: '',
+      lastMitreFocusText: '',
+      mitreIndex: null,
+      drawerWidth: null
+    };
+
+    const globalSearchInput = $('globalSearchInput');
+    const fileInput = $('fileInput');
+    const taxonomyInput = $('taxonomyInput');
+    const rulesInput = $('rulesInput');
+    const importMapInput = $('importMapInput');
+    const statusEl = $('status');
+    const warningEl = $('warning');
+    const providerSelect = $('providerSelect');
+    const sourceSelect = $('sourceSelect');
+    const providerContains = $('providerContains');
+    const providerCase = $('providerCase');
+    const sourceContains = $('sourceContains');
+    const sourceCase = $('sourceCase');
+    const eventIdInput = $('eventIdInput');
+    const descInput = $('descInput');
+    const objectSearchInput = $('objectSearchInput');
+    const fieldsInput = $('fieldsInput');
+    const mitreInput = $('mitreInput');
+    const fieldsMatchAll = $('fieldsMatchAll');
+    const fieldsCase = $('fieldsCase');
+    const onlyErrorsToggle = $('onlyErrorsToggle');
+    const errorCountHint = $('errorCountHint');
+    const onlyEnrichedToggle = $('onlyEnrichedToggle');
+    const enrichedCountHint = $('enrichedCountHint');
+    const onlyMitreToggle = $('onlyMitreToggle');
+    const mitreCountHint = $('mitreCountHint');
+    const countsEl = $('counts');
+    const enrichCountsEl = $('enrichCounts');
+    const pageInfoEl = $('pageInfo');
+    const pageSizeEl = $('pageSize');
+    const prevBtn = $('prevBtn');
+    const nextBtn = $('nextBtn');
+    const clearBtn = $('clearBtn');
+    const exportBtn = $('exportBtn');
+    const exportMapBtn = $('exportMapBtn');
+    const viewErrorsBtn = $('viewErrorsBtn');
+    const resultsBody = $('resultsBody');
+    const contentLayout = document.querySelector('.contentLayout');
+    const filtersSidebar = $('filtersSidebar');
+    const toggleSidebarBtn = $('toggleSidebarBtn');
+    const drawer = $('drawer');
+    const drawerResizeHandle = $('drawerResizeHandle');
+    const drawerTitle = $('drawerTitle');
+    const drawerSub = $('drawerSub');
+    const drawerBody = $('drawerBody');
+    const copyBtn = $('copyBtn');
+    const closeDrawer = $('closeDrawer');
+    const toastEl = $('toast');
+    const mitreFocusOverlay = $('mitreFocusOverlay');
+    const mitreFocusTitle = $('mitreFocusTitle');
+    const mitreFocusSub = $('mitreFocusSub');
+    const mitreFocusBody = $('mitreFocusBody');
+    const copyMitreBtn = $('copyMitreBtn');
+    const closeMitreFocus = $('closeMitreFocus');
+
+    const MAP_KEY = 'siem_field_mapping_v1';
+    const SIDEBAR_KEY = 'win_event_template_sidebar_hidden_v1';
+    const DRAWER_WIDTH_KEY = 'win_event_template_drawer_width_v1';
+
+    function loadMapping() {
+      try { return JSON.parse(localStorage.getItem(MAP_KEY) || '{}') || {}; }
+      catch { return {}; }
+    }
+    function saveMapping() {
+      try { localStorage.setItem(MAP_KEY, JSON.stringify(state.mapping || {})); } catch {}
+    }
+    function applySidebarVisibility(hidden) {
+      const hide = !!hidden;
+      if (contentLayout) contentLayout.classList.toggle('sidebarHidden', hide);
+      if (toggleSidebarBtn) {
+        toggleSidebarBtn.textContent = hide ? 'Show filters' : 'Hide filters';
+        toggleSidebarBtn.setAttribute('aria-expanded', hide ? 'false' : 'true');
+        toggleSidebarBtn.title = hide ? 'Show the filters sidebar' : 'Hide the filters sidebar';
+      }
+      if (filtersSidebar) filtersSidebar.setAttribute('aria-hidden', hide ? 'true' : 'false');
+      try { localStorage.setItem(SIDEBAR_KEY, hide ? '1' : '0'); } catch {}
+    }
+    function loadSidebarHidden() {
+      try { return localStorage.getItem(SIDEBAR_KEY) === '1'; }
+      catch { return false; }
+    }
+    function loadSavedDrawerWidth() {
+      try {
+        const raw = Number(localStorage.getItem(DRAWER_WIDTH_KEY) || '');
+        return Number.isFinite(raw) && raw > 0 ? raw : null;
+      } catch {
+        return null;
+      }
+    }
+    function getDrawerBounds() {
+      const vw = Math.max(window.innerWidth || 0, document.documentElement.clientWidth || 0);
+      const min = vw >= 2200 ? 620 : (vw >= 1650 ? 540 : 420);
+      const preferred = vw >= 2200 ? Math.round(vw * 0.31) : (vw >= 1650 ? Math.round(vw * 0.34) : Math.round(vw * 0.46));
+      const max = Math.max(min + 80, Math.min(vw - 180, vw >= 2200 ? 1160 : (vw >= 1650 ? 980 : 860)));
+      const fallback = Math.max(min, Math.min(max, preferred));
+      return { min, max, fallback };
+    }
+    function clampDrawerWidth(px) {
+      const bounds = getDrawerBounds();
+      return Math.max(bounds.min, Math.min(bounds.max, Math.round(Number(px) || bounds.fallback)));
+    }
+    function applyDrawerWidth(px, persist) {
+      const width = clampDrawerWidth(px);
+      state.drawerWidth = width;
+      document.documentElement.style.setProperty('--drawer-width', width + 'px');
+      if (persist) {
+        try { localStorage.setItem(DRAWER_WIDTH_KEY, String(width)); } catch {}
+      }
+      syncResponsiveLayout();
+      return width;
+    }
+    function syncResponsiveLayout() {
+      const width = Math.max(window.innerWidth || 0, document.documentElement.clientWidth || 0);
+      document.body.classList.toggle('viewport-wide', width >= 1650);
+      document.body.classList.toggle('viewport-ultra', width >= 2200);
+      document.body.classList.toggle('drawer-open', !!drawer?.classList.contains('open'));
+      const activeDrawerWidth = clampDrawerWidth(state.drawerWidth || loadSavedDrawerWidth() || getDrawerBounds().fallback);
+      document.documentElement.style.setProperty('--drawer-width', activeDrawerWidth + 'px');
+      const reserve = (drawer?.classList.contains('open') && width >= 1650) ? activeDrawerWidth : 0;
+      document.documentElement.style.setProperty('--drawer-reserved', reserve + 'px');
+    }
+    function setDrawerOpen(open) {
+      if (!drawer) return;
+      drawer.classList.toggle('open', !!open);
+      syncResponsiveLayout();
+    }
+    function setStatus(s) { statusEl.textContent = s || ''; }
+    function setWarning(s) { warningEl.textContent = s || ''; }
+    function showToast(msg) {
+      toastEl.textContent = msg || '';
+      toastEl.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => toastEl.classList.remove('show'), 2200);
+    }
+    function escapeHtml(v) {
+      return String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function escapeCsv(v) {
+      const s = String(v == null ? '' : v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    function downloadText(filename, text) {
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    }
+    function copyText(text) {
+      const s = String(text || '');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(s);
+      }
+      const ta = document.createElement('textarea');
+      ta.value = s; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove();
+      return Promise.resolve();
+    }
+    function isZipBuffer(buffer) {
+      const u8 = new Uint8Array(buffer || 0);
+      return u8.length >= 4 && u8[0] === 0x50 && u8[1] === 0x4b && u8[2] === 0x03 && u8[3] === 0x04;
+    }
+    async function unzipSingleText(buffer) {
+      const view = new DataView(buffer);
+      const len = view.byteLength;
+      let eocd = -1;
+      for (let i = len - 22; i >= Math.max(0, len - 65557); i--) {
+        if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+      }
+      if (eocd < 0) throw new Error('ZIP end-of-central-directory record not found.');
+      const totalEntries = view.getUint16(eocd + 10, true);
+      if (!totalEntries) throw new Error('ZIP archive has no entries.');
+      const centralDirOffset = view.getUint32(eocd + 16, true);
+      if (view.getUint32(centralDirOffset, true) !== 0x02014b50) throw new Error('Unsupported ZIP central directory layout.');
+      const method = view.getUint16(centralDirOffset + 10, true);
+      const compressedSize = view.getUint32(centralDirOffset + 20, true);
+      const fileNameLen = view.getUint16(centralDirOffset + 28, true);
+      const extraLen = view.getUint16(centralDirOffset + 30, true);
+      const commentLen = view.getUint16(centralDirOffset + 32, true);
+      const localHeaderOffset = view.getUint32(centralDirOffset + 42, true);
+      const nameBytes = new Uint8Array(buffer, centralDirOffset + 46, fileNameLen);
+      const entryName = new TextDecoder('utf-8').decode(nameBytes);
+      if (view.getUint32(localHeaderOffset, true) !== 0x04034b50) throw new Error('Unsupported ZIP local file header.');
+      const localNameLen = view.getUint16(localHeaderOffset + 26, true);
+      const localExtraLen = view.getUint16(localHeaderOffset + 28, true);
+      const dataOffset = localHeaderOffset + 30 + localNameLen + localExtraLen;
+      const compressed = buffer.slice(dataOffset, dataOffset + compressedSize);
+      let outputBuffer;
+      if (method === 0) {
+        outputBuffer = compressed;
+      } else if (method === 8) {
+        if (typeof DecompressionStream === 'undefined') throw new Error('This browser cannot unzip deflated archives offline. Use the JSON file directly.');
+        const ds = new DecompressionStream('deflate-raw');
+        const stream = new Blob([compressed]).stream().pipeThrough(ds);
+        outputBuffer = await new Response(stream).arrayBuffer();
+      } else {
+        throw new Error(`Unsupported ZIP compression method: ${method}`);
+      }
+      return { entryName, text: new TextDecoder('utf-8').decode(outputBuffer) };
+    }
+    async function readTextFromMaybeZip(buffer, fallbackName) {
+      if (isZipBuffer(buffer)) return unzipSingleText(buffer);
+      return { entryName: fallbackName || '', text: new TextDecoder('utf-8').decode(buffer) };
+    }
+    function disableUi(disabled) {
+      [globalSearchInput, providerSelect, sourceSelect, eventIdInput, descInput, objectSearchInput, fieldsInput, mitreInput, pageSizeEl].forEach((el) => { if (el) el.disabled = disabled; });
+      clearBtn.disabled = disabled;
+      exportBtn.disabled = disabled;
+      exportMapBtn.disabled = disabled;
+      prevBtn.disabled = disabled;
+      nextBtn.disabled = disabled;
+      onlyErrorsToggle.disabled = true;
+      onlyEnrichedToggle.disabled = true;
+      onlyMitreToggle.disabled = true;
+      if (disabled) {
+        onlyErrorsToggle.checked = false;
+        onlyEnrichedToggle.checked = false;
+        onlyMitreToggle.checked = false;
+      }
+    }
+    function updateCounts() {
+      const detCount = state.mitreIndex?.['detection-strategies']?.size || 0;
+      countsEl.textContent = `Templates: ${state.loadedCount} | Matches: ${state.filtered.length} | MITRE-covered: ${state.mitreCoveredCount} | Errors: ${state.errorCount}${detCount ? ` | Detection strategies: ${detCount}` : ''}`;
+      const tax = state.taxonomy ? `Loaded ${state.taxonomy.fields.length} fields` : 'Not loaded';
+      const rules = state.rules ? `Loaded ${state.rules.count} rules (Windows: ${state.rules.windowsCount})` : 'Not loaded';
+      enrichCountsEl.textContent = `Taxonomy: ${tax} | Rules: ${rules} | MITRE-covered events: ${state.mitreCoveredCount} | Error rows: ${state.errorCount}${detCount ? ` | Detection strategies: ${detCount}` : ''}`;
+      if (viewErrorsBtn) {
+        viewErrorsBtn.disabled = !state.errorCount;
+        viewErrorsBtn.textContent = state.errorCount ? `View errors (${state.errorCount})` : 'View errors';
+      }
+      renderLoadIssuesBanner();
+    }
+    function updatePaging() {
+      const max = Math.max(1, Math.ceil((state.filtered.length || 0) / state.pageSize));
+      if (state.page > max) state.page = max;
+      pageInfoEl.textContent = `Page ${state.page} / ${max}`;
+      prevBtn.disabled = state.page <= 1;
+      nextBtn.disabled = state.page >= max;
+    }
+    function updateToggleHints() {
+      const ruleMatched = state.rules ? state.events.filter((e) => rulesForEventId(e.id).length).length : 0;
+      errorCountHint.textContent = state.loadedCount ? (state.errorCount ? `Records with extraction / load errors: ${state.errorCount}` : 'No extraction or load-error records in the loaded object.') : 'Error records are shown automatically when present.';
+      onlyErrorsToggle.disabled = !state.errorCount;
+      enrichedCountHint.textContent = state.rules ? (ruleMatched ? `Matched templates with rules: ${ruleMatched}` : 'No rule matches in loaded templates.') : 'Load rules to enable.';
+      onlyEnrichedToggle.disabled = !ruleMatched;
+      mitreCountHint.textContent = state.loadedCount ? (state.mitreCoveredCount ? `Templates with MITRE mappings: ${state.mitreCoveredCount}` : 'No MITRE mappings found in loaded templates.') : 'Load a messages object that includes MITRE mappings.';
+      onlyMitreToggle.disabled = !state.mitreCoveredCount;
+    }
+    function errorEvents() {
+      return state.events.filter((e) => e._hasError);
+    }
+    function errorHeadline(e) {
+      const parts = [];
+      if (e.provider) parts.push(e.provider);
+      if (e.source) parts.push(e.source);
+      if (Number.isFinite(e.id) && e.id >= 0) parts.push(`EventId ${e.id}`);
+      return parts.join(' | ') || 'Unidentified record';
+    }
+    function errorSnippet(e) {
+      return firstLine(e.error || e.description || 'Error');
+    }
+    function renderLoadIssuesBanner() {
+      if (!warningEl) return;
+      if (!state.loadedCount || !state.errorCount) { warningEl.textContent = ''; return; }
+      const errs = errorEvents();
+      const summary = errs.slice(0, 3).map((e) => `${errorHeadline(e)} — ${errorSnippet(e)}`).join(' • ');
+      warningEl.textContent = `Load / extraction issues: ${summary}${errs.length > 3 ? ` • +${errs.length - 3} more` : ''}`;
+    }
+    function openErrorSummary() {
+      const errs = errorEvents();
+      if (!errs.length) { showToast('No error rows in the loaded object'); return; }
+      mitreFocusTitle.textContent = 'Load / extraction errors';
+      mitreFocusSub.textContent = `${errs.length} record${errs.length === 1 ? '' : 's'} with extraction or load errors`;
+      mitreFocusBody.innerHTML = errs.map((e) => `
+        <button type="button" class="mitreGroup errorSummaryBtn" data-error-key="${escapeHtml(e._key)}" style="width:100%; text-align:left; cursor:pointer;">
+          <div class="mitreHead">
+            <div class="row" style="align-items:flex-start; gap:10px; flex-wrap:wrap;">
+              <span class="mono miniBadge">${escapeHtml(Number.isFinite(e.id) && e.id >= 0 ? `EventId ${e.id}` : 'No EventId')}</span>
+              <div style="font-weight:700;">${escapeHtml(errorHeadline(e))}</div>
+            </div>
+            <span class="miniBadge" style="border-color: rgba(255,128,128,0.28); color: rgba(255,128,128,0.96); background: rgba(255,128,128,0.10);">Error</span>
+          </div>
+          <div class="kv" style="margin-top:10px;">
+            <div class="k">Error</div><div>${escapeHtml(errorSnippet(e) || '—')}</div>
+            <div class="k">Template state</div><div>${escapeHtml(e._hasTemplate ? 'Template XML present' : 'No template XML present')}</div>
+            <div class="k">Record key</div><div class="mono">${escapeHtml(e._key)}</div>
+          </div>
+        </button>`).join('');
+      mitreFocusBody.querySelectorAll('[data-error-key]').forEach((btn) => btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-error-key');
+        closeMitreFocusPanel();
+        openDrawer(key);
+      }));
+      state.lastMitreFocusText = errs.map((e) => [errorHeadline(e), errorSnippet(e), JSON.stringify(e._raw, null, 2)].join('\n')).join('\n\n---\n\n');
+      mitreFocusOverlay.classList.add('open');
+    }
+    function populateSelect(selectEl, values) {
+      while (selectEl.options.length > 1) selectEl.remove(1);
+      values.forEach((v) => {
+        const opt = document.createElement('option');
+        opt.value = v; opt.textContent = v; selectEl.appendChild(opt);
+      });
+    }
+    function cleanText(v) { return v == null ? '' : String(v); }
+    function firstLine(s) { s = cleanText(s); const i = s.indexOf('\n'); return (i >= 0 ? s.slice(0, i) : s).trim(); }
+    function extractFieldNames(xml) {
+      const out = []; const rx = /<data\s+name=(?:'|")([^'"]+)(?:'|")/ig; let m;
+      const s = cleanText(xml); while ((m = rx.exec(s)) !== null) out.push(cleanText(m[1]));
+      return out;
+    }
+    function summarizeFields(fields) {
+      if (!fields.length) return '';
+      return fields.length <= 5 ? fields.join(', ') : `${fields.slice(0,5).join(', ')} . (+${fields.length - 5})`;
+    }
+    function stringifyLoose(v) {
+      if (v == null) return '';
+      if (typeof v === 'string') return v;
+      if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+      try { return JSON.stringify(v, null, 2); } catch { return String(v); }
+    }
+    function normalizeMeta(meta) {
+      if (!meta || typeof meta !== 'object') return { Name: '', Value: '', DisplayName: '' };
+      return { Name: cleanText(meta.Name), Value: meta.Value ?? '', DisplayName: cleanText(meta.DisplayName) };
+    }
+    function formatMeta(meta) {
+      if (!meta) return '';
+      const d = cleanText(meta.DisplayName).trim();
+      const n = cleanText(meta.Name).trim();
+      const hasValue = meta.Value != null && meta.Value !== '';
+      if (d) return d;
+      if (n && hasValue) return `${n} (${meta.Value})`;
+      return n || (hasValue ? String(meta.Value) : '');
+    }
+    function metaValue(meta) {
+      return meta && meta.Value != null && meta.Value !== '' ? String(meta.Value) : '';
+    }
+    function metaResolutionState(meta) {
+      const hasName = !!cleanText(meta?.Name).trim();
+      const hasDisplay = !!cleanText(meta?.DisplayName).trim();
+      const hasValue = metaValue(meta) !== '';
+      if (hasDisplay || hasName) return 'Resolved';
+      if (hasValue) return 'Numeric only';
+      return 'Missing';
+    }
+    function explainLevelValue(meta) {
+      const value = Number.parseInt(metaValue(meta), 10);
+      if (!Number.isFinite(value)) return '';
+      return ({
+        0: 'LogAlways / provider default',
+        1: 'Critical',
+        2: 'Error',
+        3: 'Warning',
+        4: 'Information',
+        5: 'Verbose'
+      })[value] || '';
+    }
+    function renderEventMetaCard(kind, meta) {
+      const spec = ({
+        Level: {
+          badge: 'LEVEL',
+          title: 'Severity / level',
+          purpose: 'Windows event severity. Useful for triage, alert prioritization, and suppression logic.',
+          resolvedLabel: formatMeta(meta) || '—',
+          rawLabel: metaValue(meta) || '—',
+          state: metaResolutionState(meta),
+          extraRows: [
+            ['Common meaning', explainLevelValue(meta) || 'Provider-specific or unresolved'],
+            ['Name', cleanText(meta?.Name).trim() || '—'],
+            ['DisplayName', cleanText(meta?.DisplayName).trim() || '—']
+          ]
+        },
+        Task: {
+          badge: 'TASK',
+          title: 'Task category',
+          purpose: 'Provider-defined event category or sub-function. Useful for grouping related event behaviors under a source/provider.',
+          resolvedLabel: formatMeta(meta) || '—',
+          rawLabel: metaValue(meta) || '—',
+          state: metaResolutionState(meta),
+          extraRows: [
+            ['Name', cleanText(meta?.Name).trim() || '—'],
+            ['DisplayName', cleanText(meta?.DisplayName).trim() || '—'],
+            ['EventGuid', cleanText(meta?.EventGuid).trim() || '—']
+          ]
+        },
+        Opcode: {
+          badge: 'OPCODE',
+          title: 'Opcode / operation',
+          purpose: 'Provider-defined operation or phase code. Useful when the same EventId emits start, stop, update, or other action variants.',
+          resolvedLabel: formatMeta(meta) || '—',
+          rawLabel: metaValue(meta) || '—',
+          state: metaResolutionState(meta),
+          extraRows: [
+            ['Name', cleanText(meta?.Name).trim() || '—'],
+            ['DisplayName', cleanText(meta?.DisplayName).trim() || '—']
+          ]
+        }
+      })[kind];
+      if (!spec) return '';
+      const badgeText = spec.resolvedLabel !== '—' ? spec.resolvedLabel : spec.state;
+      let html = `<details class="ruleCard" open><summary class="ruleSummary"><span class="ruleId mono">${escapeHtml(spec.badge)}</span><span class="ruleMsg">${escapeHtml(spec.title)}</span><span class="ruleBadge on">${escapeHtml(badgeText)}</span></summary><div class="ruleBody"><div class="ruleKv">`;
+      [
+        ['Why it matters', spec.purpose],
+        ['Resolved label', spec.resolvedLabel],
+        ['Raw value', spec.rawLabel],
+        ['Resolution state', spec.state],
+        ...spec.extraRows
+      ].forEach(([k, v]) => {
+        html += `<div class="k">${escapeHtml(k)}</div><div class="${k === 'Raw value' ? 'mono' : ''}">${escapeHtml(v)}</div>`;
+      });
+      html += `</div></div></details>`;
+      return html;
+    }
+    function isMeaningfulValue(v) {
+      if (v == null) return false;
+      if (Array.isArray(v)) return v.some((x) => isMeaningfulValue(x));
+      if (typeof v === 'object') return Object.keys(v).some((k) => isMeaningfulValue(v[k]));
+      return String(v).trim() !== '';
+    }
+    function makeKey(e, idx) {
+      const base = e.template_hash || `${e.id}|${e.provider}|${e.source}|${e.version}`;
+      return `${idx}|${base}`;
+    }
+    function toArrayLoose(v) {
+      if (Array.isArray(v)) return v.map((x) => String(x == null ? '' : x).trim()).filter(Boolean);
+      if (v == null) return [];
+      const s = String(v).trim();
+      if (!s) return [];
+      return /[\n;,]/.test(s) ? s.split(/[\n;,]+/).map((x) => x.trim()).filter(Boolean) : [s];
+    }
+    function uniqueStrings(values) {
+      const out = []; const seen = new Set();
+      toArrayLoose(values).forEach((s) => { if (!seen.has(s)) { seen.add(s); out.push(s); } });
+      return out;
+    }
+    function normalizeMutableElements(list) {
+      if (!Array.isArray(list)) return [];
+      return list.map((m) => ({
+        field: cleanText(m?.field),
+        description: cleanText(m?.description)
+      })).filter((m) => m.field || m.description);
+    }
+    function normalizeMitreMatches(list) {
+      if (!Array.isArray(list)) return [];
+      return list.map((m) => ({
+        tactic_id: cleanText(m?.tactic_id),
+        tactic_name: cleanText(m?.tactic_name),
+        technique_id: cleanText(m?.technique_id),
+        technique_name: cleanText(m?.technique_name),
+        subtechnique_id: cleanText(m?.subtechnique_id),
+        subtechnique_name: cleanText(m?.subtechnique_name),
+        detection_strategy_id: cleanText(m?.detection_strategy_id),
+        detection_strategy_name: cleanText(m?.detection_strategy_name),
+        detection_strategy_url: cleanText(m?.detection_strategy_url),
+        detection_strategy_description: cleanText(m?.detection_strategy_description),
+        analytic_id: cleanText(m?.analytic_id),
+        analytic_name: cleanText(m?.analytic_name),
+        analytic_url: cleanText(m?.analytic_url),
+        analytic_description: cleanText(m?.analytic_description),
+        analytic_mutable_elements: normalizeMutableElements(m?.analytic_mutable_elements),
+        data_component_id: cleanText(m?.data_component_id || m?.x_mitre_data_component_ref),
+        data_component_name: cleanText(m?.data_component_name),
+        mitre_log_source: cleanText(m?.mitre_log_source),
+        mitre_channel: cleanText(m?.mitre_channel),
+        platforms: toArrayLoose(m?.platforms)
+      }));
+    }
+    function uniqueFromMatches(matches, key) {
+      const seen = new Set(), out = [];
+      matches.forEach((m) => {
+        const v = cleanText(m?.[key]).trim();
+        if (v && !seen.has(v)) { seen.add(v); out.push(v); }
+      });
+      return out;
+    }
+    function combineMitreIdName(id, name) {
+      id = cleanText(id).trim(); name = cleanText(name).trim();
+      return id && name ? `${id} ${name}` : (id || name || '');
+    }
+    function zipIdNameLabels(ids, names) {
+      const out = [], seen = new Set();
+      const idList = uniqueStrings(ids), nameList = uniqueStrings(names);
+      const max = Math.max(idList.length, nameList.length);
+      for (let i = 0; i < max; i++) {
+        const label = combineMitreIdName(idList[i], nameList[i]);
+        if (label && !seen.has(label)) { seen.add(label); out.push(label); }
+      }
+      idList.forEach((id) => { if (id && !seen.has(id)) { seen.add(id); out.push(id); } });
+      nameList.forEach((name) => { if (name && !seen.has(name)) { seen.add(name); out.push(name); } });
+      return out;
+    }
+    function collectSearchParts(value, out, depth = 0) {
+      if (value == null || depth > 6) return;
+      if (Array.isArray(value)) { value.forEach((v) => collectSearchParts(v, out, depth + 1)); return; }
+      if (typeof value === 'object') {
+        Object.entries(value).forEach(([k, v]) => {
+          if (k === 'template') return;
+          const kk = cleanText(k).trim();
+          if (kk) out.push(kk);
+          collectSearchParts(v, out, depth + 1);
+        });
+        return;
+      }
+      const s = cleanText(value).trim();
+      if (s) out.push(s);
+    }
+    function normalizeEvent(raw, idx) {
+      const e = { ...raw };
+      e._raw = raw;
+      const rid = raw?.id ?? raw?.eventId ?? raw?.event_identifier ?? raw?.event_id;
+      e.id = Number.parseInt(rid, 10); if (!Number.isFinite(e.id)) e.id = -1;
+      e.event_identifier = Number.parseInt(raw?.event_identifier ?? e.id, 10);
+      if (!Number.isFinite(e.event_identifier)) e.event_identifier = e.id;
+      e.qualifiers = raw?.qualifiers ?? '';
+      e.provider = cleanText(raw?.provider);
+      e.source = cleanText(raw?.source || raw?.sources || raw?.classic_sources);
+      e.sources = cleanText(raw?.sources);
+      e.classic_sources = cleanText(raw?.classic_sources);
+      e.log_links = Array.isArray(raw?.log_links) ? raw.log_links.map((x) => cleanText(x)).filter(Boolean) : uniqueStrings(raw?.log_links);
+      e.description = cleanText(raw?.description);
+      e.error = cleanText(raw?.error);
+      e.template = cleanText(raw?.template);
+      e.template_hash = cleanText(raw?.template_hash);
+      e.version = raw?.version ?? 0;
+      e.keywordsdisplayNames = uniqueStrings(raw?.keywordsdisplayNames);
+      e.level = normalizeMeta(raw?.level);
+      e.opcode = normalizeMeta(raw?.opcode);
+      e.task = normalizeMeta(raw?.task);
+      e._msg = firstLine(e.description || e.error);
+      e._fields = extractFieldNames(e.template);
+      e.mitre_matches = normalizeMitreMatches(raw?.mitre_matches);
+      e.mitre_tactic_ids = uniqueStrings(raw?.mitre_tactic_ids);
+      e.mitre_technique_ids = uniqueStrings(raw?.mitre_technique_ids);
+      e.mitre_subtechnique_ids = uniqueStrings(raw?.mitre_subtechnique_ids);
+      e.mitre_detection_strategy_ids = uniqueStrings(raw?.mitre_detection_strategy_ids);
+      e.mitre_detection_strategy_names = uniqueStrings(raw?.mitre_detection_strategy_names);
+      e.mitre_analytic_ids = uniqueStrings(raw?.mitre_analytic_ids);
+      e.mitre_data_component_ids = uniqueStrings(raw?.mitre_data_component_ids);
+      e.mitre_data_component_names = uniqueStrings(raw?.mitre_data_component_names);
+      if (!e.mitre_tactic_ids.length) e.mitre_tactic_ids = uniqueFromMatches(e.mitre_matches, 'tactic_id');
+      if (!e.mitre_technique_ids.length) e.mitre_technique_ids = uniqueFromMatches(e.mitre_matches, 'technique_id');
+      if (!e.mitre_subtechnique_ids.length) e.mitre_subtechnique_ids = uniqueFromMatches(e.mitre_matches, 'subtechnique_id');
+      if (!e.mitre_detection_strategy_ids.length) e.mitre_detection_strategy_ids = uniqueFromMatches(e.mitre_matches, 'detection_strategy_id');
+      if (!e.mitre_detection_strategy_names.length) e.mitre_detection_strategy_names = uniqueFromMatches(e.mitre_matches, 'detection_strategy_name');
+      if (!e.mitre_analytic_ids.length) e.mitre_analytic_ids = uniqueFromMatches(e.mitre_matches, 'analytic_id');
+      if (!e.mitre_data_component_ids.length) e.mitre_data_component_ids = uniqueFromMatches(e.mitre_matches, 'data_component_id');
+      if (!e.mitre_data_component_names.length) e.mitre_data_component_names = uniqueFromMatches(e.mitre_matches, 'data_component_name');
+      e._mitre_strategy_ids = uniqueStrings([...e.mitre_detection_strategy_ids, ...uniqueFromMatches(e.mitre_matches, 'detection_strategy_id')]);
+      e._mitre_analytic_ids = uniqueStrings([...e.mitre_analytic_ids, ...uniqueFromMatches(e.mitre_matches, 'analytic_id')]);
+      e.mitre_match_count = Number.parseInt(raw?.mitre_match_count, 10);
+      if (!Number.isFinite(e.mitre_match_count)) e.mitre_match_count = e.mitre_matches.length;
+      e._hasMitre = !!(e.mitre_match_count || e.mitre_matches.length || e.mitre_tactic_ids.length || e._mitre_strategy_ids.length || e.mitre_detection_strategy_names.length);
+      e._hasTemplate = !!e.template;
+      e._hasError = !!e.error;
+      const knownKeys = new Set(['id','eventId','event_identifier','event_id','qualifiers','description','keywordsdisplayNames','level','opcode','task','template','version','source','sources','log_links','classic_sources','provider','template_hash','mitre_match_count','mitre_tactic_ids','mitre_technique_ids','mitre_subtechnique_ids','mitre_detection_strategy_ids','mitre_detection_strategy_names','mitre_analytic_ids','mitre_data_component_ids','mitre_data_component_names','mitre_matches','error']);
+      e._extras = {};
+      Object.keys(raw || {}).forEach((k) => { if (!knownKeys.has(k) && isMeaningfulValue(raw[k])) e._extras[k] = raw[k]; });
+      e._extraKeys = Object.keys(e._extras);
+      e._mitreSearch = [
+        ...e.mitre_tactic_ids, ...e.mitre_technique_ids, ...e.mitre_subtechnique_ids,
+        ...e.mitre_detection_strategy_ids, ...e.mitre_detection_strategy_names,
+        ...e.mitre_analytic_ids, ...e.mitre_data_component_ids, ...e.mitre_data_component_names,
+        ...e.mitre_matches.flatMap((m) => [
+          m.tactic_id, m.tactic_name, m.technique_id, m.technique_name, m.subtechnique_id, m.subtechnique_name,
+          m.detection_strategy_id, m.detection_strategy_name, m.detection_strategy_url, m.detection_strategy_description,
+          m.analytic_id, m.analytic_name, m.analytic_url, m.analytic_description,
+          m.data_component_id, m.data_component_name, m.mitre_log_source, m.mitre_channel,
+          ...(m.platforms || []),
+          ...((m.analytic_mutable_elements || []).flatMap((el) => [el.field, el.description]))
+        ])
+      ].filter(Boolean).join(' | ').toLowerCase();
+      const rawSearchParts = [];
+      const rawForSearch = raw && typeof raw === 'object' ? { ...raw } : raw;
+      if (rawForSearch && typeof rawForSearch === 'object') delete rawForSearch.template;
+      collectSearchParts(rawForSearch, rawSearchParts);
+      e._objectSearch = [
+        e.id, e.event_identifier, e.qualifiers, e.provider, e.source, e.sources, e.classic_sources, e.description, e.error, e.template_hash,
+        formatMeta(e.level), formatMeta(e.task), formatMeta(e.opcode),
+        e.keywordsdisplayNames.join(' | '), e.log_links.join(' | '), e._fields.join(' | '), e._mitreSearch, rawSearchParts.join(' | '), stringifyLoose(e._extras)
+      ].filter(Boolean).join(' | ').toLowerCase();
+      e._globalSearch = [
+        e._objectSearch,
+        e._msg,
+        e.mitre_detection_strategy_names.join(' | '),
+        e._mitre_strategy_ids.join(' | '),
+        e._mitre_analytic_ids.join(' | ')
+      ].filter(Boolean).join(' | ').toLowerCase();
+      e._searchBuckets = [
+        { label: 'Event', text: [e.id, e.event_identifier !== e.id ? `identifier ${e.event_identifier}` : '', e.qualifiers ? `qualifiers ${e.qualifiers}` : '', `version ${e.version}`].filter(Boolean).join(' | ') },
+        { label: 'Provider', text: e.provider },
+        { label: 'Source', text: [e.source, e.sources && e.sources !== e.source ? e.sources : '', e.classic_sources && e.classic_sources !== e.source ? e.classic_sources : ''].filter(Boolean).join(' | ') },
+        { label: 'Message', text: [e._msg, e.description, e.error].filter(Boolean).join(' | ') },
+        { label: 'Template', text: e._fields.join(' | ') },
+        { label: 'Metadata', text: [formatMeta(e.level), formatMeta(e.task), formatMeta(e.opcode), e.keywordsdisplayNames.join(' | ')].filter(Boolean).join(' | ') },
+        { label: 'Links', text: e.log_links.join(' | ') },
+        { label: 'MITRE', text: e._mitreSearch },
+        { label: 'Extra schema', text: [e._extraKeys.join(' | '), stringifyLoose(e._extras)].filter(Boolean).join(' | ') }
+      ].map((bucket) => ({
+        label: bucket.label,
+        text: cleanText(bucket.text).replace(/\s+/g, ' ').trim()
+      })).filter((bucket) => bucket.text).map((bucket) => ({
+        label: bucket.label,
+        text: bucket.text,
+        hay: bucket.text.toLowerCase()
+      }));
+      e._key = makeKey(e, idx);
+      if (!e.template_hash) e.template_hash = e._key;
+      return e;
+    }
+
+    function parseIdFilter(s) {
+      s = cleanText(s).trim();
+      if (!s) return { mode: 'any' };
+      if (/^\d+\s*-\s*\d+$/.test(s)) {
+        const [a,b] = s.split('-').map((x) => Number.parseInt(x, 10));
+        return { mode: 'range', lo: Math.min(a,b), hi: Math.max(a,b) };
+      }
+      if (/^\d+(\s*,\s*\d+)+$/.test(s)) {
+        const set = new Set(s.split(',').map((x) => Number.parseInt(x.trim(), 10)));
+        return { mode: 'set', set };
+      }
+      const one = Number.parseInt(s, 10);
+      return Number.isFinite(one) ? { mode: 'one', one } : { mode: 'any' };
+    }
+    function norm(s, cs) { s = cleanText(s); return cs ? s : s.toLowerCase(); }
+    function matchText(hay, needle, contains, cs) {
+      if (!needle) return true;
+      const h = norm(hay, cs), n = norm(needle, cs);
+      return contains ? h.includes(n) : h === n;
+    }
+    function splitTokens(s) { return cleanText(s).split(',').map((x) => x.trim()).filter(Boolean); }
+    function splitSearchTerms(s) {
+      const parts = cleanText(s).match(/"[^"]+"|\S+/g) || [];
+      return parts.map((p) => p.replace(/^"|"$/g, '').trim().toLowerCase()).filter(Boolean);
+    }
+    function buildRuleSearchText(eventId) {
+      return state.rules?.searchTextByEventId?.[String(eventId)] || '';
+    }
+    function matchesAllTerms(haystack, query) {
+      const terms = splitSearchTerms(query);
+      if (!terms.length) return true;
+      const h = cleanText(haystack).toLowerCase();
+      return terms.every((term) => h.includes(term));
+    }
+    function buildSearchMatchDetails(item, query) {
+      const terms = splitSearchTerms(query);
+      if (!terms.length) return [];
+      const buckets = Array.isArray(item._searchBuckets) ? item._searchBuckets.slice() : [];
+      const ruleText = cleanText(buildRuleSearchText(item.id)).replace(/\s+/g, ' ').trim();
+      if (ruleText) buckets.push({ label: 'Rules', text: ruleText, hay: ruleText.toLowerCase() });
+      const hits = [];
+      buckets.forEach((bucket) => {
+        const matchedTerms = terms.filter((term) => bucket.hay.includes(term));
+        if (!matchedTerms.length) return;
+        let pos = -1;
+        matchedTerms.forEach((term) => {
+          const idx = bucket.hay.indexOf(term);
+          if (idx >= 0 && (pos === -1 || idx < pos)) pos = idx;
+        });
+        let snippet = bucket.text;
+        if (snippet.length > 120) {
+          const start = pos > 36 ? pos - 36 : 0;
+          const end = Math.min(bucket.text.length, start + 120);
+          snippet = bucket.text.slice(start, end).trim();
+          if (start > 0) snippet = '…' + snippet;
+          if (end < bucket.text.length) snippet = snippet + '…';
+        }
+        hits.push({ label: bucket.label, terms: matchedTerms.length, snippet });
+      });
+      return hits.sort((a, b) => (b.terms - a.terms) || a.label.localeCompare(b.label)).slice(0, 4);
+    }
+    function renderSearchMatchCell(item, query) {
+      if (!cleanText(query).trim()) return '<span class="hitNone">—</span>';
+      const hits = buildSearchMatchDetails(item, query);
+      if (!hits.length) return '<span class="hitNone">Matched by active filters</span>';
+      return `<div class="hitList">${hits.map((hit) => `<div class="hitItem"><span class="hitChip">${escapeHtml(hit.label)}</span><span class="hitText">${escapeHtml(hit.snippet || 'Matched')}</span></div>`).join('')}</div>`;
+    }
+    function matchFieldTokens(fields, tokens, matchAll, cs) {
+      if (!tokens.length) return true;
+      const hay = fields.map((f) => norm(f, cs));
+      const need = tokens.map((t) => norm(t, cs));
+      return matchAll ? need.every((tok) => hay.some((f) => f.includes(tok))) : need.some((tok) => hay.some((f) => f.includes(tok)));
+    }
+    function currentCriteria() {
+      return {
+        globalQuery: globalSearchInput.value,
+        provider: providerSelect.value,
+        providerContains: providerContains.checked,
+        providerCase: providerCase.checked,
+        source: sourceSelect.value,
+        sourceContains: sourceContains.checked,
+        sourceCase: sourceCase.checked,
+        eventId: eventIdInput.value,
+        desc: descInput.value,
+        objectQuery: objectSearchInput.value,
+        fieldTokens: fieldsInput.value,
+        fieldsMatchAll: fieldsMatchAll.checked,
+        fieldsCase: fieldsCase.checked,
+        mitreQuery: mitreInput.value,
+        onlyErrors: !onlyErrorsToggle.disabled && onlyErrorsToggle.checked,
+        onlyEnriched: !onlyEnrichedToggle.disabled && onlyEnrichedToggle.checked,
+        onlyMitre: !onlyMitreToggle.disabled && onlyMitreToggle.checked
+      };
+    }
+    function eventMatches(e, c) {
+      if (c.onlyErrors && !e._hasError) return false;
+      if (c.onlyEnriched && !rulesForEventId(e.id).length) return false;
+      if (c.onlyMitre && !e._hasMitre) return false;
+      if (c.globalQuery && !matchesAllTerms(`${e._globalSearch} | ${buildRuleSearchText(e.id)}`, c.globalQuery)) return false;
+      if (c.provider && !matchText(e.provider, c.provider, c.providerContains, c.providerCase)) return false;
+      if (c.source && !matchText(e.source, c.source, c.sourceContains, c.sourceCase)) return false;
+      const idf = parseIdFilter(c.eventId);
+      if (idf.mode === 'one' && e.id !== idf.one) return false;
+      if (idf.mode === 'range' && (e.id < idf.lo || e.id > idf.hi)) return false;
+      if (idf.mode === 'set' && !idf.set.has(e.id)) return false;
+      if (c.desc && !e.description.toLowerCase().includes(c.desc.toLowerCase())) return false;
+      if (c.objectQuery && !e._objectSearch.includes(c.objectQuery.toLowerCase())) return false;
+      if (c.mitreQuery && !e._mitreSearch.includes(c.mitreQuery.toLowerCase())) return false;
+      if (!matchFieldTokens(e._fields, splitTokens(c.fieldTokens), c.fieldsMatchAll, c.fieldsCase)) return false;
+      return true;
+    }
+
+    function applyFilters(resetPage = false) {
+      if (resetPage) state.page = 1;
+      const c = currentCriteria();
+      state.filtered = state.events.filter((e) => eventMatches(e, c));
+      updateCounts();
+      renderTable();
+      updateToggleHints();
+    }
+    function renderTable() {
+      resultsBody.innerHTML = '';
+      const maxPage = Math.max(1, Math.ceil(state.filtered.length / state.pageSize));
+      if (state.page > maxPage) state.page = maxPage;
+      const start = (state.page - 1) * state.pageSize;
+      const items = state.filtered.slice(start, start + state.pageSize);
+      const activeGlobalQuery = cleanText(globalSearchInput.value).trim();
+      state.lastItems = items;
+      if (!items.length) {
+        resultsBody.innerHTML = '<tr><td colspan="9" class="small" style="padding:14px 12px;">No matches.</td></tr>';
+        updatePaging();
+        return;
+      }
+      items.forEach((it) => {
+        const tr = document.createElement('tr');
+        tr.dataset.key = it._key;
+        if (it._hasError) tr.classList.add('rowError');
+        const stateClass = it._hasError ? 'error' : (it._hasTemplate ? 'ready' : 'sparse');
+        const stateLabel = it._hasError ? 'Error' : (it._hasTemplate ? 'Ready' : 'Sparse');
+        const rowMessage = it._hasError ? it.error : it._msg;
+        const metaBits = [
+          it.event_identifier !== it.id ? `identifier ${it.event_identifier}` : '',
+          String(it.qualifiers).trim() && String(it.qualifiers).trim() !== '0' ? `qualifiers ${it.qualifiers}` : '',
+          formatMeta(it.level) ? `level ${formatMeta(it.level)}` : '',
+          formatMeta(it.task) ? `task ${formatMeta(it.task)}` : '',
+          formatMeta(it.opcode) ? `opcode ${formatMeta(it.opcode)}` : '',
+          it.keywordsdisplayNames.length ? `keywords ${it.keywordsdisplayNames.join(', ')}` : '',
+          it.log_links.length ? `links ${it.log_links.length}` : ''
+        ].filter(Boolean).slice(0, 4);
+        const sourceMeta = [it.sources && it.sources !== it.source ? `sources ${it.sources}` : '', it.classic_sources && it.classic_sources !== it.source ? `classic ${it.classic_sources}` : ''].filter(Boolean).join(' • ');
+        const mitreTitle = [
+          it.mitre_tactic_ids.join(', '),
+          it.mitre_technique_ids.join(', '),
+          it.mitre_detection_strategy_names.join(', '),
+          it._mitre_strategy_ids.join(', '),
+          it._mitre_analytic_ids.join(', ')
+        ].filter(Boolean).join(' | ');
+        tr.innerHTML = `
+          <td class="mono col-id">${escapeHtml(it.id)}</td>
+          <td class="col-src">${escapeHtml(it.source)}${sourceMeta ? `<span class="tableSubline">${escapeHtml(sourceMeta)}</span>` : ''}</td>
+          <td class="col-prov">${escapeHtml(it.provider)}</td>
+          <td>${escapeHtml(rowMessage || '—')}${metaBits.length ? `<span class="tableSubline">${escapeHtml(metaBits.join(' • '))}</span>` : ''}</td>
+          <td class="col-fields">${escapeHtml(summarizeFields(it._fields) || (it._hasError ? '—' : 'No template fields'))}</td>
+          <td class="col-state"><span class="stateBadge ${stateClass}">${stateLabel}</span></td>
+          <td class="col-hit">${renderSearchMatchCell(it, activeGlobalQuery)}</td>
+          <td class="mono col-rules">${rulesForEventId(it.id).length || '-'}</td>
+          <td class="mono col-mitre" title="${escapeHtml(mitreTitle)}">${it.mitre_match_count || (it._hasMitre ? 'Y' : '-')}</td>`;
+        tr.addEventListener('click', () => openDrawer(it._key));
+        resultsBody.appendChild(tr);
+      });
+      updatePaging();
+    }
+
+    function collectMitreStats(item) {
+      const matches = item.mitre_matches || [];
+      const topStrategyLabels = zipIdNameLabels(item.mitre_detection_strategy_ids, item.mitre_detection_strategy_names);
+      const stats = {
+        matchCount: Math.max(item.mitre_match_count || 0, matches.length),
+        tacticIds: uniqueStrings(item.mitre_tactic_ids),
+        techniqueIds: uniqueStrings(item.mitre_technique_ids),
+        subtechniqueIds: uniqueStrings(item.mitre_subtechnique_ids),
+        analyticIds: uniqueStrings(item.mitre_analytic_ids),
+        dataComponentIds: uniqueStrings(item.mitre_data_component_ids),
+        dataComponentNames: uniqueStrings(item.mitre_data_component_names),
+        strategyIds: uniqueStrings([...item.mitre_detection_strategy_ids, ...matches.map((m) => m.detection_strategy_id)]),
+        tacticLabels: uniqueStrings(matches.map((m) => combineMitreIdName(m.tactic_id, m.tactic_name))),
+        techniqueLabels: uniqueStrings(matches.map((m) => combineMitreIdName(m.technique_id, m.technique_name))),
+        subtechniqueLabels: uniqueStrings(matches.map((m) => combineMitreIdName(m.subtechnique_id, m.subtechnique_name))),
+        strategyLabels: uniqueStrings([...topStrategyLabels, ...matches.map((m) => combineMitreIdName(m.detection_strategy_id, m.detection_strategy_name))]),
+        analyticLabels: uniqueStrings(matches.map((m) => combineMitreIdName(m.analytic_id, m.analytic_name))),
+        dataComponentLabels: zipIdNameLabels(item.mitre_data_component_ids, item.mitre_data_component_names),
+        channels: uniqueStrings(matches.map((m) => m.mitre_channel)),
+        logSources: uniqueStrings(matches.map((m) => m.mitre_log_source)),
+        platforms: uniqueStrings(matches.flatMap((m) => toArrayLoose(m.platforms)))
+      };
+      return stats;
+    }
+    function groupMitreMatches(item) {
+      const groups = new Map();
+      (item.mitre_matches || []).forEach((m, idx) => {
+        const badge = m.detection_strategy_id || m.analytic_id || m.technique_id || `MITRE-${idx+1}`;
+        const label = m.detection_strategy_name || m.analytic_name || m.subtechnique_name || m.technique_name || m.tactic_name || 'MITRE mapping';
+        if (!groups.has(badge)) groups.set(badge, {
+          key: badge,
+          badge,
+          label,
+          recordCount: 0,
+          tactics: [], techniques: [], subtechniques: [], analytics: [], dataComponents: [], logSources: [], channels: [], platforms: [],
+          strategyDescriptions: [], strategyUrls: [], analyticDescriptions: [], analyticUrls: [], mutableElements: []
+        });
+        const g = groups.get(badge);
+        g.recordCount++;
+        [
+          [g.tactics, combineMitreIdName(m.tactic_id, m.tactic_name)],
+          [g.techniques, combineMitreIdName(m.technique_id, m.technique_name)],
+          [g.subtechniques, combineMitreIdName(m.subtechnique_id, m.subtechnique_name)],
+          [g.analytics, combineMitreIdName(m.analytic_id, m.analytic_name)],
+          [g.dataComponents, combineMitreIdName(m.data_component_id, m.data_component_name)],
+          [g.logSources, m.mitre_log_source],
+          [g.channels, m.mitre_channel],
+          [g.strategyDescriptions, m.detection_strategy_description],
+          [g.strategyUrls, m.detection_strategy_url],
+          [g.analyticDescriptions, m.analytic_description],
+          [g.analyticUrls, m.analytic_url]
+        ].forEach(([arr, val]) => { val = cleanText(val).trim(); if (val && !arr.includes(val)) arr.push(val); });
+        toArrayLoose(m.platforms).forEach((p) => { if (!g.platforms.includes(p)) g.platforms.push(p); });
+        (m.analytic_mutable_elements || []).forEach((el) => {
+          const label = [cleanText(el.field).trim(), cleanText(el.description).trim()].filter(Boolean).join(': ');
+          if (label && !g.mutableElements.includes(label)) g.mutableElements.push(label);
+        });
+      });
+      return [...groups.values()].sort((a,b) => a.badge.localeCompare(b.badge));
+    }
+
+    function buildMitreIndex(events) {
+      const index = Object.create(null);
+      ['tactics','techniques','subtechniques','detection-strategies','analytics','data-components','log-sources','channels','platforms'].forEach((level) => {
+        index[level] = new Map();
+      });
+      const makeEntry = (level, key, badge, label) => ({
+        level,
+        key: cleanText(key).trim(),
+        badge: cleanText(badge).trim() || cleanText(key).trim() || 'MITRE',
+        label: cleanText(label).trim() || cleanText(key).trim() || 'MITRE mapping',
+        recordCount: 0,
+        eventRefs: [],
+        tactics: [],
+        techniques: [],
+        subtechniques: [],
+        strategies: [],
+        analytics: [],
+        dataComponents: [],
+        logSources: [],
+        channels: [],
+        platforms: [],
+        descriptions: [],
+        urls: [],
+        mutableElements: [],
+        topLevelOnly: true,
+        _seenEventKeys: Object.create(null)
+      });
+      const ensureEntry = (level, key, badge, label) => {
+        const bucket = index[level];
+        key = cleanText(key).trim();
+        if (!bucket || !key) return null;
+        if (!bucket.has(key)) bucket.set(key, makeEntry(level, key, badge, label));
+        const entry = bucket.get(key);
+        if (label && (!entry.label || entry.label === entry.key)) entry.label = cleanText(label).trim();
+        if (badge && (!entry.badge || entry.badge === entry.key)) entry.badge = cleanText(badge).trim();
+        return entry;
+      };
+      const attachEvent = (entry, item) => {
+        if (!entry || !item || entry._seenEventKeys[item._key]) return;
+        entry._seenEventKeys[item._key] = 1;
+        entry.eventRefs.push({
+          key: item._key,
+          id: item.id,
+          event_identifier: item.event_identifier,
+          version: item.version,
+          provider: item.provider,
+          source: item.source,
+          message: item._msg || firstLine(item.description || item.error)
+        });
+      };
+      const attachTopLevel = (entry, item) => {
+        if (!entry) return;
+        attachEvent(entry, item);
+      };
+      const attachMatch = (entry, item, m) => {
+        if (!entry) return;
+        attachEvent(entry, item);
+        entry.recordCount++;
+        entry.topLevelOnly = false;
+        [
+          [entry.tactics, combineMitreIdName(m.tactic_id, m.tactic_name)],
+          [entry.techniques, combineMitreIdName(m.technique_id, m.technique_name)],
+          [entry.subtechniques, combineMitreIdName(m.subtechnique_id, m.subtechnique_name)],
+          [entry.strategies, combineMitreIdName(m.detection_strategy_id, m.detection_strategy_name)],
+          [entry.analytics, combineMitreIdName(m.analytic_id, m.analytic_name)],
+          [entry.dataComponents, combineMitreIdName(m.data_component_id, m.data_component_name)],
+          [entry.logSources, m.mitre_log_source],
+          [entry.channels, m.mitre_channel],
+          [entry.descriptions, m.detection_strategy_description],
+          [entry.descriptions, m.analytic_description],
+          [entry.urls, m.detection_strategy_url],
+          [entry.urls, m.analytic_url]
+        ].forEach(([arr, val]) => pushUniqueValue(arr, val));
+        toArrayLoose(m.platforms).forEach((platform) => pushUniqueValue(entry.platforms, platform));
+        (m.analytic_mutable_elements || []).forEach((el) => {
+          const label = [cleanText(el.field).trim(), cleanText(el.description).trim()].filter(Boolean).join(': ');
+          pushUniqueValue(entry.mutableElements, label);
+        });
+      };
+      const attachPrimePairs = (level, ids, names, labelBuilder, item) => {
+        const idList = uniqueStrings(ids);
+        const nameList = uniqueStrings(names);
+        const max = Math.max(idList.length, nameList.length);
+        for (let i = 0; i < max; i++) {
+          const id = idList[i] || '';
+          const name = nameList[i] || '';
+          const key = id || name;
+          if (!key) continue;
+          attachTopLevel(ensureEntry(level, key, id || key, labelBuilder(id, name) || key), item);
+        }
+      };
+      events.forEach((item) => {
+        (item.mitre_matches || []).forEach((m) => {
+          const tacticKey = cleanText(m.tactic_id).trim() || cleanText(m.tactic_name).trim();
+          attachMatch(ensureEntry('tactics', tacticKey, cleanText(m.tactic_id).trim() || tacticKey, combineMitreIdName(m.tactic_id, m.tactic_name) || tacticKey), item, m);
+          const techniqueKey = cleanText(m.technique_id).trim() || cleanText(m.technique_name).trim();
+          attachMatch(ensureEntry('techniques', techniqueKey, cleanText(m.technique_id).trim() || techniqueKey, combineMitreIdName(m.technique_id, m.technique_name) || techniqueKey), item, m);
+          const subtechniqueKey = cleanText(m.subtechnique_id).trim() || cleanText(m.subtechnique_name).trim();
+          attachMatch(ensureEntry('subtechniques', subtechniqueKey, cleanText(m.subtechnique_id).trim() || subtechniqueKey, combineMitreIdName(m.subtechnique_id, m.subtechnique_name) || subtechniqueKey), item, m);
+          const strategyKey = cleanText(m.detection_strategy_id).trim() || cleanText(m.detection_strategy_name).trim();
+          attachMatch(ensureEntry('detection-strategies', strategyKey, cleanText(m.detection_strategy_id).trim() || strategyKey, combineMitreIdName(m.detection_strategy_id, m.detection_strategy_name) || strategyKey), item, m);
+          const analyticKey = cleanText(m.analytic_id).trim() || cleanText(m.analytic_name).trim();
+          attachMatch(ensureEntry('analytics', analyticKey, cleanText(m.analytic_id).trim() || analyticKey, combineMitreIdName(m.analytic_id, m.analytic_name) || analyticKey), item, m);
+          const dcKey = cleanText(m.data_component_id).trim() || cleanText(m.data_component_name).trim();
+          attachMatch(ensureEntry('data-components', dcKey, cleanText(m.data_component_id).trim() || dcKey, combineMitreIdName(m.data_component_id, m.data_component_name) || dcKey), item, m);
+          const logKey = cleanText(m.mitre_log_source).trim();
+          attachMatch(ensureEntry('log-sources', logKey, 'LOG', logKey), item, m);
+          const channelKey = cleanText(m.mitre_channel).trim();
+          attachMatch(ensureEntry('channels', channelKey, 'CHAN', channelKey), item, m);
+          toArrayLoose(m.platforms).forEach((platform) => {
+            const platformKey = cleanText(platform).trim();
+            attachMatch(ensureEntry('platforms', platformKey, 'OS', platformKey), item, m);
+          });
+        });
+        item.mitre_tactic_ids.forEach((id) => attachTopLevel(ensureEntry('tactics', id, id, id), item));
+        item.mitre_technique_ids.forEach((id) => attachTopLevel(ensureEntry('techniques', id, id, id), item));
+        item.mitre_subtechnique_ids.forEach((id) => attachTopLevel(ensureEntry('subtechniques', id, id, id), item));
+        attachPrimePairs('detection-strategies', item.mitre_detection_strategy_ids, item.mitre_detection_strategy_names, (id, name) => combineMitreIdName(id, name), item);
+        item._mitre_analytic_ids.forEach((id) => attachTopLevel(ensureEntry('analytics', id, id, id), item));
+        attachPrimePairs('data-components', item.mitre_data_component_ids, item.mitre_data_component_names, (id, name) => combineMitreIdName(id, name), item);
+      });
+      Object.values(index).forEach((bucket) => bucket.forEach((entry) => {
+        entry.eventRefs.sort((a, b) => {
+          const aid = Number.isFinite(a.id) ? a.id : Number.MAX_SAFE_INTEGER;
+          const bid = Number.isFinite(b.id) ? b.id : Number.MAX_SAFE_INTEGER;
+          if (aid !== bid) return aid - bid;
+          return `${a.provider}|${a.source}|${a.message}`.localeCompare(`${b.provider}|${b.source}|${b.message}`);
+        });
+        delete entry._seenEventKeys;
+      }));
+      return index;
+    }
+    function getMitreIndexEntry(level, key) {
+      const bucket = state.mitreIndex?.[level];
+      key = cleanText(key).trim();
+      if (!bucket || !key) return null;
+      if (bucket.has(key)) return bucket.get(key);
+      for (const entry of bucket.values()) {
+        if (entry.badge === key || entry.label === key) return entry;
+      }
+      return null;
+    }
+    function renderMitreLinkedEvents(entry, currentKey) {
+      if (!entry || !entry.eventRefs || !entry.eventRefs.length) return '';
+      const refs = entry.eventRefs.slice().sort((a, b) => {
+        if (a.key === currentKey) return -1;
+        if (b.key === currentKey) return 1;
+        const aid = Number.isFinite(a.id) ? a.id : Number.MAX_SAFE_INTEGER;
+        const bid = Number.isFinite(b.id) ? b.id : Number.MAX_SAFE_INTEGER;
+        if (aid !== bid) return aid - bid;
+        return `${a.provider}|${a.source}|${a.message}`.localeCompare(`${b.provider}|${b.source}|${b.message}`);
+      });
+      const versionLabels = Array.from(new Set(refs.map((ref) => cleanText(ref.version)).filter((v) => String(v).trim() !== ''))).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+      const intro = `Across the loaded object, this ${escapeHtml(mitreFocusLabel(entry.level))} object is linked to ${escapeHtml(String(refs.length))} event${refs.length === 1 ? '' : 's'}.`;
+      const versionMeta = versionLabels.length ? `Template versions present: ${escapeHtml(versionLabels.join(', '))}.` : 'No template version metadata was attached to the linked events.';
+      let html = `<div class="mitreFocusAsideCard"><div class="mitreFocusAsideHead"><div><div class="mitreFocusAsideTitle">Linked events</div><div class="mitreFocusAsideMeta">${intro}</div><div class="mitreFocusAsideMeta">${versionMeta}</div></div><span class="ruleBadge on">${escapeHtml(String(refs.length))} event${refs.length === 1 ? '' : 's'}</span></div><div class="ruleList">`;
+      refs.forEach((ref) => {
+        const current = ref.key === currentKey;
+        const titleBits = [`EventId ${ref.id}`];
+        if (String(ref.version).trim() !== '') titleBits.push(`v${ref.version}`);
+        const meta = [ref.provider, ref.source].filter(Boolean).join(' • ');
+        const metaBits = [];
+        if (meta) metaBits.push(meta);
+        if (String(ref.event_identifier).trim() && String(ref.event_identifier) !== String(ref.id)) metaBits.push(`event_identifier ${ref.event_identifier}`);
+        if (String(ref.version).trim() !== '') metaBits.push(`template version ${ref.version}`);
+        const subtitle = metaBits.join(' • ') || 'Open event details';
+        html += `<div class="ruleCard"><button type="button" class="linkyCardButton" data-open-event-key="${escapeHtml(ref.key)}"><span class="ruleSummary"><span class="ruleId mono">${escapeHtml(titleBits.join(' • '))}</span><span class="ruleMsg">${escapeHtml(ref.message || subtitle)}</span><span class="ruleBadge ${current ? 'on' : ''}">${current ? 'Current' : 'Open'}</span></span><div class="mitreCardMeta">${escapeHtml(subtitle)}</div></button></div>`;
+      });
+      html += '</div></div>';
+      return html;
+    }
+
+    function pushUniqueValue(arr, value) {
+      value = cleanText(value).trim();
+      if (value && !arr.includes(value)) arr.push(value);
+    }
+    function makeMitreFacetCard(level, key, badge, label) {
+      return {
+        level,
+        key: cleanText(key).trim(),
+        badge: cleanText(badge).trim() || cleanText(key).trim() || 'MITRE',
+        label: cleanText(label).trim() || cleanText(key).trim() || 'MITRE mapping',
+        recordCount: 0,
+        tactics: [],
+        techniques: [],
+        subtechniques: [],
+        strategies: [],
+        analytics: [],
+        dataComponents: [],
+        logSources: [],
+        channels: [],
+        platforms: [],
+        descriptions: [],
+        urls: [],
+        mutableElements: [],
+        rawMatches: [],
+        topLevelOnly: true
+      };
+    }
+    function attachMatchToMitreFacet(card, m) {
+      card.recordCount++;
+      card.topLevelOnly = false;
+      card.rawMatches.push(m);
+      [
+        [card.tactics, combineMitreIdName(m.tactic_id, m.tactic_name)],
+        [card.techniques, combineMitreIdName(m.technique_id, m.technique_name)],
+        [card.subtechniques, combineMitreIdName(m.subtechnique_id, m.subtechnique_name)],
+        [card.strategies, combineMitreIdName(m.detection_strategy_id, m.detection_strategy_name)],
+        [card.analytics, combineMitreIdName(m.analytic_id, m.analytic_name)],
+        [card.dataComponents, combineMitreIdName(m.data_component_id, m.data_component_name)],
+        [card.logSources, m.mitre_log_source],
+        [card.channels, m.mitre_channel]
+      ].forEach(([arr, val]) => pushUniqueValue(arr, val));
+      toArrayLoose(m.platforms).forEach((p) => pushUniqueValue(card.platforms, p));
+      (m.analytic_mutable_elements || []).forEach((el) => {
+        const mutableLabel = [cleanText(el.field).trim(), cleanText(el.description).trim()].filter(Boolean).join(': ');
+        pushUniqueValue(card.mutableElements, mutableLabel);
+      });
+    }
+    function buildMitreFacetCards(item, level) {
+      const matches = item.mitre_matches || [];
+      const map = new Map();
+      const ensure = (key, badge, label) => {
+        key = cleanText(key).trim();
+        if (!key) return null;
+        if (!map.has(key)) map.set(key, makeMitreFacetCard(level, key, badge, label));
+        const card = map.get(key);
+        if (!card.label && label) card.label = cleanText(label).trim();
+        if (!card.badge && badge) card.badge = cleanText(badge).trim();
+        return card;
+      };
+      const primePairs = (ids, names, makeLabel) => {
+        const idList = uniqueStrings(ids);
+        const nameList = uniqueStrings(names);
+        const max = Math.max(idList.length, nameList.length);
+        for (let i = 0; i < max; i++) {
+          const id = idList[i] || '';
+          const name = nameList[i] || '';
+          const key = id || name;
+          if (!key) continue;
+          ensure(key, id || key, makeLabel(id, name) || key);
+        }
+      };
+      if (level === 'match-records') {
+        matches.forEach((m, idx) => {
+          const badge = m.detection_strategy_id || m.analytic_id || m.technique_id || `MITRE-${idx + 1}`;
+          const label = m.detection_strategy_name || m.analytic_name || m.subtechnique_name || m.technique_name || m.tactic_name || 'MITRE mapping';
+          const card = ensure(`match-${idx + 1}`, badge, label);
+          if (!card) return;
+          attachMatchToMitreFacet(card, m);
+          pushUniqueValue(card.descriptions, m.detection_strategy_description);
+          pushUniqueValue(card.descriptions, m.analytic_description);
+          pushUniqueValue(card.urls, m.detection_strategy_url);
+          pushUniqueValue(card.urls, m.analytic_url);
+        });
+      } else if (level === 'tactics') {
+        item.mitre_tactic_ids.forEach((id) => ensure(id, id, id));
+        matches.forEach((m) => {
+          const key = cleanText(m.tactic_id).trim() || cleanText(m.tactic_name).trim();
+          const card = ensure(key, cleanText(m.tactic_id).trim() || key, combineMitreIdName(m.tactic_id, m.tactic_name) || key);
+          if (card) attachMatchToMitreFacet(card, m);
+        });
+      } else if (level === 'techniques') {
+        item.mitre_technique_ids.forEach((id) => ensure(id, id, id));
+        matches.forEach((m) => {
+          const key = cleanText(m.technique_id).trim() || cleanText(m.technique_name).trim();
+          const card = ensure(key, cleanText(m.technique_id).trim() || key, combineMitreIdName(m.technique_id, m.technique_name) || key);
+          if (card) attachMatchToMitreFacet(card, m);
+        });
+      } else if (level === 'subtechniques') {
+        item.mitre_subtechnique_ids.forEach((id) => ensure(id, id, id));
+        matches.forEach((m) => {
+          const key = cleanText(m.subtechnique_id).trim() || cleanText(m.subtechnique_name).trim();
+          const card = ensure(key, cleanText(m.subtechnique_id).trim() || key, combineMitreIdName(m.subtechnique_id, m.subtechnique_name) || key);
+          if (card) attachMatchToMitreFacet(card, m);
+        });
+      } else if (level === 'detection-strategies') {
+        primePairs(item.mitre_detection_strategy_ids, item.mitre_detection_strategy_names, (id, name) => combineMitreIdName(id, name));
+        matches.forEach((m) => {
+          const key = cleanText(m.detection_strategy_id).trim() || cleanText(m.detection_strategy_name).trim();
+          const card = ensure(key, cleanText(m.detection_strategy_id).trim() || key, combineMitreIdName(m.detection_strategy_id, m.detection_strategy_name) || key);
+          if (!card) return;
+          attachMatchToMitreFacet(card, m);
+          pushUniqueValue(card.descriptions, m.detection_strategy_description);
+          pushUniqueValue(card.urls, m.detection_strategy_url);
+        });
+      } else if (level === 'analytics') {
+        item._mitre_analytic_ids.forEach((id) => ensure(id, id, id));
+        matches.forEach((m) => {
+          const key = cleanText(m.analytic_id).trim() || cleanText(m.analytic_name).trim();
+          const card = ensure(key, cleanText(m.analytic_id).trim() || key, combineMitreIdName(m.analytic_id, m.analytic_name) || key);
+          if (!card) return;
+          attachMatchToMitreFacet(card, m);
+          pushUniqueValue(card.descriptions, m.analytic_description);
+          pushUniqueValue(card.urls, m.analytic_url);
+        });
+      } else if (level === 'data-components') {
+        primePairs(item.mitre_data_component_ids, item.mitre_data_component_names, (id, name) => combineMitreIdName(id, name));
+        matches.forEach((m) => {
+          const key = cleanText(m.data_component_id).trim() || cleanText(m.data_component_name).trim();
+          const card = ensure(key, cleanText(m.data_component_id).trim() || key, combineMitreIdName(m.data_component_id, m.data_component_name) || key);
+          if (card) attachMatchToMitreFacet(card, m);
+        });
+      } else if (level === 'log-sources') {
+        matches.forEach((m) => {
+          const key = cleanText(m.mitre_log_source).trim();
+          const card = ensure(key, 'LOG', key);
+          if (card) attachMatchToMitreFacet(card, m);
+        });
+      } else if (level === 'channels') {
+        matches.forEach((m) => {
+          const key = cleanText(m.mitre_channel).trim();
+          const card = ensure(key, 'CHAN', key);
+          if (card) attachMatchToMitreFacet(card, m);
+        });
+      } else if (level === 'platforms') {
+        matches.forEach((m) => {
+          toArrayLoose(m.platforms).forEach((platform) => {
+            const key = cleanText(platform).trim();
+            const card = ensure(key, 'OS', key);
+            if (card) attachMatchToMitreFacet(card, m);
+          });
+        });
+      }
+      return [...map.values()].sort((a, b) => {
+        const aCount = a.recordCount || 0;
+        const bCount = b.recordCount || 0;
+        if (bCount !== aCount) return bCount - aCount;
+        return a.badge.localeCompare(b.badge) || a.label.localeCompare(b.label);
+      });
+    }
+    function mitreFocusLabel(level) {
+      return ({
+        'match-records': 'match records',
+        'tactics': 'tactics',
+        'techniques': 'techniques',
+        'subtechniques': 'sub-techniques',
+        'detection-strategies': 'detection strategies',
+        'analytics': 'analytics',
+        'data-components': 'data components',
+        'log-sources': 'log sources',
+        'channels': 'channels',
+        'platforms': 'platforms'
+      })[level] || level;
+    }
+    function renderMitreFacetCard(card, level) {
+      const skipField = ({
+        'tactics': 'tactics',
+        'techniques': 'techniques',
+        'subtechniques': 'subtechniques',
+        'detection-strategies': 'strategies',
+        'analytics': 'analytics',
+        'data-components': 'dataComponents',
+        'log-sources': 'logSources',
+        'channels': 'channels',
+        'platforms': 'platforms'
+      })[level];
+      const globalEntry = getMitreIndexEntry(level, card.key || card.badge);
+      const linkedEvents = globalEntry?.eventRefs?.length || 0;
+      const rows = [];
+      const addRow = (label, value, opts = {}) => {
+        if (Array.isArray(value) && !value.length) return;
+        if (!Array.isArray(value) && !cleanText(value).trim()) return;
+        const klass = opts.mono ? ' class="mono"' : '';
+        const content = Array.isArray(value)
+          ? (opts.links ? renderLinkList(value) : escapeHtml(value.join(', ')))
+          : (opts.links ? renderLinkList([value]) : escapeHtml(value));
+        rows.push(`<div class="k">${escapeHtml(label)}</div><div${klass}>${content}</div>`);
+      };
+      if (card.topLevelOnly) rows.push('<div class="k">Linked details</div><div class="small">Top-level schema mapping only. No detailed MITRE match record was attached for this object.</div>');
+      addRow('Match records', String(card.recordCount || 0), { mono: true });
+      if (linkedEvents) addRow('Linked events across loaded object', String(linkedEvents), { mono: true });
+      if (skipField !== 'tactics') addRow('Tactics', card.tactics);
+      if (skipField !== 'techniques') addRow('Techniques', card.techniques);
+      if (skipField !== 'subtechniques') addRow('Sub-techniques', card.subtechniques);
+      if (skipField !== 'strategies') addRow('Detection strategies', card.strategies);
+      if (skipField !== 'analytics') addRow('Analytics', card.analytics);
+      if (card.rawMatches.length && level !== 'analytics') rows.push(`<div class="k">Analytics details</div><div>${renderMitreAnalyticDetails(card.rawMatches)}</div>`);
+      if (skipField !== 'dataComponents') addRow('Data components', card.dataComponents);
+      if (card.rawMatches.length && level !== 'data-components') rows.push(`<div class="k">Data component details</div><div>${renderMitreDataComponentDetails(card.rawMatches)}</div>`);
+      if (skipField !== 'logSources') addRow('Log sources', card.logSources);
+      if (skipField !== 'channels') addRow('Channels', card.channels, { mono: true });
+      if (skipField !== 'platforms') addRow('Platforms', card.platforms);
+      addRow('Descriptions', card.descriptions);
+      addRow('Reference URLs', card.urls, { links: true });
+      if (card.mutableElements.length) rows.push(`<div class="k">Mutable elements</div><div><pre>${escapeHtml(card.mutableElements.join('\n'))}</pre></div>`);
+      if (card.rawMatches.length === 1) rows.push(`<div class="k">Raw match JSON</div><div><details><summary class="small" style="cursor:pointer;">Show raw MITRE match object</summary><pre>${escapeHtml(JSON.stringify(card.rawMatches[0], null, 2))}</pre></details></div>`);
+      const badgeText = `${card.recordCount || 0} record${card.recordCount === 1 ? '' : 's'}${linkedEvents ? ` • ${linkedEvents} event${linkedEvents === 1 ? '' : 's'}` : ''}`;
+      return `<details class="ruleCard" open><summary class="ruleSummary"><span class="ruleId mono">${escapeHtml(card.badge)}</span><span class="ruleMsg">${escapeHtml(card.label)}</span><span class="ruleBadge on">${escapeHtml(badgeText)}</span></summary><div class="ruleBody"><div class="ruleKv">${rows.join('')}</div></div></details>`;
+    }
+    function buildMitreFocusSection(item, level, selectedKey) {
+      const cards = buildMitreFacetCards(item, level).filter((card) => !selectedKey || card.key === selectedKey || card.badge === selectedKey);
+      if (!cards.length) {
+        return `<div class="small">No ${escapeHtml(mitreFocusLabel(level))} were attached to this event.</div>`;
+      }
+      const noun = mitreFocusLabel(level);
+      const focusKey = selectedKey || cards[0]?.key || cards[0]?.badge || '';
+      const linkedEntry = getMitreIndexEntry(level, focusKey);
+      const mainHtml = `<div class="mitreFocusMain"><div class="small" style="margin-bottom:10px;">Showing ${escapeHtml(String(cards.length))} ${escapeHtml(noun)} for EventId ${escapeHtml(item.id)}.</div><div class="ruleList">${cards.map((card) => renderMitreFacetCard(card, level)).join('')}</div></div>`;
+      if (linkedEntry && linkedEntry.eventRefs && linkedEntry.eventRefs.length) {
+        return `<div class="mitreFocusGrid">${mainHtml}<aside class="mitreFocusAside">${renderMitreLinkedEvents(linkedEntry, item._key)}</aside></div>`;
+      }
+      return mainHtml;
+    }
+    function openMitreFocus(item, level, selectedKey = '') {
+      if (!item) return;
+      mitreFocusTitle.textContent = `MITRE ${mitreFocusLabel(level)}`;
+      mitreFocusSub.textContent = `EventId ${item.id} • ${item.provider || '—'} • ${item.source || '—'}`;
+      mitreFocusBody.innerHTML = buildMitreFocusSection(item, level, selectedKey);
+      state.lastMitreFocusText = mitreFocusBody.innerText || '';
+      mitreFocusOverlay.classList.add('open');
+    }
+    function closeMitreFocusPanel() {
+      mitreFocusOverlay.classList.remove('open');
+    }
+    function renderLinkList(urls) {
+      const list = uniqueStrings(urls);
+      if (!list.length) return '—';
+      return `<div class="linkList">${list.map((url) => `<a class="extLink mono" href="${escapeHtml(url)}" target="_blank" rel="noreferrer noopener">${escapeHtml(url)}</a>`).join('')}</div>`;
+    }
+    function collectMitreAnalyticDetails(matches) {
+      const map = new Map();
+      (matches || []).forEach((m) => {
+        const key = cleanText(m.analytic_id).trim() || cleanText(m.analytic_name).trim();
+        if (!key) return;
+        if (!map.has(key)) map.set(key, {
+          badge: cleanText(m.analytic_id).trim() || key,
+          label: combineMitreIdName(m.analytic_id, m.analytic_name) || key,
+          descriptions: [],
+          urls: [],
+          mutableElements: [],
+          dataComponents: [],
+          logSources: [],
+          channels: [],
+          platforms: []
+        });
+        const entry = map.get(key);
+        pushUniqueValue(entry.descriptions, m.analytic_description);
+        pushUniqueValue(entry.urls, m.analytic_url);
+        pushUniqueValue(entry.dataComponents, combineMitreIdName(m.data_component_id, m.data_component_name));
+        pushUniqueValue(entry.logSources, m.mitre_log_source);
+        pushUniqueValue(entry.channels, m.mitre_channel);
+        toArrayLoose(m.platforms).forEach((platform) => pushUniqueValue(entry.platforms, platform));
+        (m.analytic_mutable_elements || []).forEach((el) => {
+          const label = [cleanText(el.field).trim(), cleanText(el.description).trim()].filter(Boolean).join(': ');
+          pushUniqueValue(entry.mutableElements, label);
+        });
+      });
+      return [...map.values()].sort((a, b) => a.badge.localeCompare(b.badge) || a.label.localeCompare(b.label));
+    }
+    function collectMitreDataComponentDetails(matches) {
+      const map = new Map();
+      (matches || []).forEach((m) => {
+        const key = cleanText(m.data_component_id).trim() || cleanText(m.data_component_name).trim();
+        if (!key) return;
+        if (!map.has(key)) map.set(key, {
+          badge: cleanText(m.data_component_id).trim() || key,
+          label: combineMitreIdName(m.data_component_id, m.data_component_name) || key,
+          analytics: [],
+          strategies: [],
+          techniques: [],
+          tactics: [],
+          logSources: [],
+          channels: [],
+          platforms: []
+        });
+        const entry = map.get(key);
+        pushUniqueValue(entry.analytics, combineMitreIdName(m.analytic_id, m.analytic_name));
+        pushUniqueValue(entry.strategies, combineMitreIdName(m.detection_strategy_id, m.detection_strategy_name));
+        pushUniqueValue(entry.techniques, combineMitreIdName(m.technique_id, m.technique_name));
+        pushUniqueValue(entry.tactics, combineMitreIdName(m.tactic_id, m.tactic_name));
+        pushUniqueValue(entry.logSources, m.mitre_log_source);
+        pushUniqueValue(entry.channels, m.mitre_channel);
+        toArrayLoose(m.platforms).forEach((platform) => pushUniqueValue(entry.platforms, platform));
+      });
+      return [...map.values()].sort((a, b) => a.badge.localeCompare(b.badge) || a.label.localeCompare(b.label));
+    }
+    function renderMitreAnalyticDetails(matches) {
+      const entries = collectMitreAnalyticDetails(matches);
+      if (!entries.length) return '—';
+      return `<div class="mitreDetailStack">${entries.map((entry) => {
+        const rows = [];
+        if (entry.descriptions.length) rows.push(`<div class="k">How to detect</div><div>${escapeHtml(entry.descriptions.join(' '))}</div>`);
+        if (entry.dataComponents.length) rows.push(`<div class="k">Data components</div><div>${escapeHtml(entry.dataComponents.join(', '))}</div>`);
+        if (entry.logSources.length) rows.push(`<div class="k">Log sources</div><div>${escapeHtml(entry.logSources.join(', '))}</div>`);
+        if (entry.channels.length) rows.push(`<div class="k">Channels</div><div class="mono">${escapeHtml(entry.channels.join(', '))}</div>`);
+        if (entry.platforms.length) rows.push(`<div class="k">Platforms</div><div>${escapeHtml(entry.platforms.join(', '))}</div>`);
+        if (entry.urls.length) rows.push(`<div class="k">Reference URLs</div><div>${renderLinkList(entry.urls)}</div>`);
+        if (entry.mutableElements.length) rows.push(`<div class="k">Mutable elements</div><div><pre>${escapeHtml(entry.mutableElements.join('\n'))}</pre></div>`);
+        return `<div class="mitreDetailBlock"><div class="mitreDetailHead"><span class="ruleId mono">${escapeHtml(entry.badge)}</span><div><div class="mitreDetailTitle">${escapeHtml(entry.label)}</div><div class="mitreDetailMeta">Analytic guidance attached to this ATT&amp;CK object.</div></div></div><div class="mitreDetailKv">${rows.join('')}</div></div>`;
+      }).join('')}</div>`;
+    }
+    function renderMitreDataComponentDetails(matches) {
+      const entries = collectMitreDataComponentDetails(matches);
+      if (!entries.length) return '—';
+      return `<div class="mitreDetailStack">${entries.map((entry) => {
+        const rows = [];
+        if (entry.analytics.length) rows.push(`<div class="k">Analytics</div><div>${escapeHtml(entry.analytics.join(', '))}</div>`);
+        if (entry.strategies.length) rows.push(`<div class="k">Detection strategies</div><div>${escapeHtml(entry.strategies.join(', '))}</div>`);
+        if (entry.techniques.length) rows.push(`<div class="k">Techniques</div><div>${escapeHtml(entry.techniques.join(', '))}</div>`);
+        if (entry.tactics.length) rows.push(`<div class="k">Tactics</div><div>${escapeHtml(entry.tactics.join(', '))}</div>`);
+        if (entry.logSources.length) rows.push(`<div class="k">Log sources</div><div>${escapeHtml(entry.logSources.join(', '))}</div>`);
+        if (entry.channels.length) rows.push(`<div class="k">Channels</div><div class="mono">${escapeHtml(entry.channels.join(', '))}</div>`);
+        if (entry.platforms.length) rows.push(`<div class="k">Platforms</div><div>${escapeHtml(entry.platforms.join(', '))}</div>`);
+        return `<div class="mitreDetailBlock"><div class="mitreDetailHead"><span class="ruleId mono">${escapeHtml(entry.badge)}</span><div><div class="mitreDetailTitle">${escapeHtml(entry.label)}</div><div class="mitreDetailMeta">Telemetry component coverage and linked ATT&amp;CK context.</div></div></div><div class="mitreDetailKv">${rows.join('')}</div></div>`;
+      }).join('')}</div>`;
+    }
+
+    function buildMitreSection(item) {
+      const s = collectMitreStats(item);
+      if (!s.matchCount && !s.strategyIds.length && !s.techniqueIds.length && !s.tacticIds.length) {
+        return '<div class="small">No MITRE ATT&amp;CK mappings on this event.</div>';
+      }
+      let summaryChips = '<div class="chips">';
+      summaryChips += `<button type="button" class="chip chipAction" data-mitre-action="facet" data-mitre-level="match-records"><strong>Match records</strong>${escapeHtml(s.matchCount)}</button>`;
+      summaryChips += `<button type="button" class="chip chipAction" data-mitre-action="facet" data-mitre-level="tactics"><strong>Tactics</strong>${escapeHtml(s.tacticLabels.length || s.tacticIds.length)}</button>`;
+      summaryChips += `<button type="button" class="chip chipAction" data-mitre-action="facet" data-mitre-level="techniques"><strong>Techniques</strong>${escapeHtml(s.techniqueLabels.length || s.techniqueIds.length)}</button>`;
+      if (s.subtechniqueLabels.length || s.subtechniqueIds.length) summaryChips += `<button type="button" class="chip chipAction" data-mitre-action="facet" data-mitre-level="subtechniques"><strong>Sub-techniques</strong>${escapeHtml(s.subtechniqueLabels.length || s.subtechniqueIds.length)}</button>`;
+      if (s.strategyLabels.length || s.strategyIds.length) summaryChips += `<button type="button" class="chip chipAction" data-mitre-action="facet" data-mitre-level="detection-strategies"><strong>Detection strategies</strong>${escapeHtml(s.strategyLabels.length || s.strategyIds.length)}</button>`;
+      if (s.analyticLabels.length || s.analyticIds.length) summaryChips += `<button type="button" class="chip chipAction" data-mitre-action="facet" data-mitre-level="analytics"><strong>Analytics</strong>${escapeHtml(s.analyticLabels.length || s.analyticIds.length)}</button>`;
+      if (s.dataComponentNames.length || s.dataComponentIds.length) summaryChips += `<button type="button" class="chip chipAction" data-mitre-action="facet" data-mitre-level="data-components"><strong>Data components</strong>${escapeHtml(s.dataComponentNames.length || s.dataComponentIds.length)}</button>`;
+      summaryChips += '</div>';
+
+      let html = `<details class="ruleCard" open><summary class="sectionCollapseSummary"><span class="ruleId mono">SUMMARY</span><span class="ruleMsg">ATT&amp;CK coverage summary</span><span class="ruleBadge neutral">${escapeHtml(String(s.matchCount))} matches</span></summary><div class="sectionCollapseBody">${summaryChips}</div></details>`;
+      const groups = groupMitreMatches(item);
+      if (!groups.length) {
+        let topLevel = '<div class="small" style="margin-bottom:10px;">MITRE summary fields are present, but no detailed match records were included. Use the chips above to inspect the top-level mappings attached to this event.</div>';
+        topLevel += '<div class="kv">';
+        if (s.strategyLabels.length) topLevel += `<div class="k">Detection strategies</div><div>${escapeHtml(s.strategyLabels.join(', '))}</div>`;
+        if (s.tacticIds.length) topLevel += `<div class="k">Tactic IDs</div><div class="mono">${escapeHtml(s.tacticIds.join(', '))}</div>`;
+        if (s.techniqueIds.length) topLevel += `<div class="k">Technique IDs</div><div class="mono">${escapeHtml(s.techniqueIds.join(', '))}</div>`;
+        if (s.subtechniqueIds.length) topLevel += `<div class="k">Sub-technique IDs</div><div class="mono">${escapeHtml(s.subtechniqueIds.join(', '))}</div>`;
+        if (s.analyticIds.length) topLevel += `<div class="k">Analytic IDs</div><div class="mono">${escapeHtml(s.analyticIds.join(', '))}</div>`;
+        if (s.dataComponentLabels.length) topLevel += `<div class="k">Data components</div><div>${escapeHtml(s.dataComponentLabels.join(', '))}</div>`;
+        topLevel += '</div>';
+        html += `<details class="ruleCard" open style="margin-top:10px;"><summary class="sectionCollapseSummary"><span class="ruleId mono">TOP-LEVEL</span><span class="ruleMsg">Schema mappings without detailed records</span><span class="ruleBadge neutral">Inspectable</span></summary><div class="sectionCollapseBody">${topLevel}</div></details>`;
+        return html;
+      }
+      let groupedHtml = '<div class="small" style="margin-bottom:8px;">Click a summary chip to inspect that ATT&amp;CK layer, or click a DET / analytic row below to open the full linked card for that object and the other events tied to it.</div><div class="ruleList">';
+      groups.forEach((g) => {
+        const rowLevel = /^AN/i.test(cleanText(g.badge)) ? 'analytics' : 'detection-strategies';
+        const linkedEntry = getMitreIndexEntry('detection-strategies', g.key || g.badge) || getMitreIndexEntry('analytics', g.key || g.badge);
+        const linkedEvents = linkedEntry?.eventRefs?.length || 0;
+        const badgeText = `${g.recordCount} record${g.recordCount === 1 ? '' : 's'}${linkedEvents ? ` • ${linkedEvents} event${linkedEvents === 1 ? '' : 's'}` : ''}`;
+        const meta = [g.tactics[0], g.techniques[0], linkedEvents ? `${linkedEvents} linked event${linkedEvents === 1 ? '' : 's'}` : ''].filter(Boolean).slice(0, 3).join(' • ');
+        groupedHtml += `<div class="ruleCard"><button type="button" class="mitreCardButton" data-mitre-action="group" data-mitre-level="${escapeHtml(rowLevel)}" data-mitre-key="${escapeHtml(g.badge)}"><span class="ruleSummary"><span class="ruleId mono">${escapeHtml(g.badge)}</span><span class="ruleMsg">${escapeHtml(g.label)}</span><span class="ruleBadge on">${escapeHtml(badgeText)}</span></span>${meta ? `<div class="mitreCardMeta">${escapeHtml(meta)}</div>` : ''}</button></div>`;
+      });
+      groupedHtml += '</div>';
+      html += `<details class="ruleCard" open style="margin-top:10px;"><summary class="sectionCollapseSummary"><span class="ruleId mono">DET / AN</span><span class="ruleMsg">Detection strategies and analytics</span><span class="ruleBadge on">${escapeHtml(String(groups.length))} objects</span></summary><div class="sectionCollapseBody">${groupedHtml}</div></details>`;
+      return html;
+    }
+
+    function rulesForEventId(eventId) {
+      return state.rules?.byEventId?.[String(eventId)] || [];
+    }
+    function buildRulesSection(item) {
+      const rs = rulesForEventId(item.id);
+      if (!rs.length) return `<div class="small">${state.rules ? 'No rule matches for this EventId.' : 'Rules not loaded.'}</div>`;
+      let html = '<div class="ruleList">';
+      rs.forEach((r) => {
+        const outputs = normalizeRuleOutputs(r.output);
+        const queueText = (r.queues || []).join(', ') || '—';
+        const searchText = cleanText(r.search || '').trim();
+        const tuningSearchText = cleanText(r.tuningSearch || '').trim();
+        html += `<details class="ruleCard"><summary class="ruleSummary"><span class="ruleSummaryMain"><span class="ruleId mono">${escapeHtml(r.id)}</span><span class="ruleSummaryText"><span class="ruleMsg">${escapeHtml(r.message || 'Rule')}</span></span></span><span class="ruleBadges"><span class="ruleBadge ${r.enabled ? 'on' : 'off'}">${r.enabled ? 'Enabled' : 'Disabled'}</span>${renderRuleBoolBadge('Deleted', !!r.deleted)}${renderRuleOutputBadges(outputs)}</span></summary><div class="ruleBody"><div class="ruleKv"><div class="k">Description</div><div>${escapeHtml(r.description || '—')}</div><div class="k">Queues</div><div>${escapeHtml(queueText)}</div><div class="k">Confidence</div><div>${escapeHtml(r.confidence || '—')}</div><div class="k">Risk</div><div>${escapeHtml(r.risk || '—')}</div><div class="k">Severity</div><div>${escapeHtml(r.severity || '—')}</div><div class="k">Tags</div><div>${renderRuleMetaChips(r.tags, 'tag')}</div><div class="k">Distinguishers</div><div>${renderRuleMetaChips(r.distinguishers, 'field')}</div><div class="k">Search</div><div><pre>${escapeHtml(searchText || '—')}</pre></div><div class="k">Tuning search</div><div><pre>${escapeHtml(tuningSearchText || '—')}</pre></div></div></div></details>`;
+      });
+      html += '</div>';
+      return html;
+    }
+    function buildTransformsSection(item) {
+      if (!state.taxonomy) return '<div class="small">Import taxonomy CSV to enable transform dropdowns.</div>';
+      if (!item._fields.length) return '<div class="small">No &lt;data name="..."&gt; fields found in this template.</div>';
+      let html = '<div class="small" style="margin-bottom:8px;">Selections are stored locally as a global mapping keyed by Windows field name.</div>';
+      html += '<table class="miniTable"><thead><tr><th>Token</th><th>Windows field</th><th>SIEM field</th><th>Type</th></tr></thead><tbody>';
+      item._fields.forEach((win, i) => {
+        const current = state.mapping[win] || '';
+        const h = state.taxonomy.byName[current] || null;
+        html += `<tr><td class="mono">%${i+1}</td><td class="mono">${escapeHtml(win)}</td><td><select class="control sm mono field-map" data-win="${escapeHtml(win)}">${state.taxonomy.optionsHtml}</select></td><td class="mono type-cell">${escapeHtml(h?.type || '')}</td></tr>`;
+      });
+      html += '</tbody></table><div class="checkrow"><button class="btn" id="copyTransformBtn">Copy mapping for this event</button><button class="btn danger" id="clearEventMapBtn">Clear mappings for listed fields</button></div>';
+      return html;
+    }
+    function buildFieldMapText(item) { return item._fields.length ? item._fields.map((f, i) => `%${i+1} → ${f}`).join('\n') : 'No template fields extracted.'; }
+    function buildMitreDetailText(item) {
+      const s = collectMitreStats(item);
+      if (!s.matchCount && !s.strategyIds.length && !s.techniqueIds.length && !s.tacticIds.length) return '';
+      const lines = [`Match records: ${s.matchCount}`];
+      if (s.strategyLabels.length) lines.push(`Detection strategies: ${s.strategyLabels.join(', ')}`);
+      if (s.tacticLabels.length) lines.push(`Tactics: ${s.tacticLabels.join(', ')}`);
+      if (s.techniqueLabels.length) lines.push(`Techniques: ${s.techniqueLabels.join(', ')}`);
+      if (s.subtechniqueLabels.length) lines.push(`Sub-techniques: ${s.subtechniqueLabels.join(', ')}`);
+      if (s.analyticLabels.length) lines.push(`Analytics: ${s.analyticLabels.join(', ')}`);
+      if (s.dataComponentLabels.length) lines.push(`Data components: ${s.dataComponentLabels.join(', ')}`);
+      if (s.logSources.length) lines.push(`Log sources: ${s.logSources.join(', ')}`);
+      if (s.channels.length) lines.push(`Channels: ${s.channels.join(', ')}`);
+      if (s.platforms.length) lines.push(`Platforms: ${s.platforms.join(', ')}`);
+      const groups = groupMitreMatches(item);
+      if (groups.length) {
+        lines.push('', 'Detailed MITRE records:');
+        groups.forEach((g) => {
+          lines.push(`- ${g.badge}: ${g.label}`);
+          const linkedEntry = getMitreIndexEntry('detection-strategies', g.key || g.badge) || getMitreIndexEntry('analytics', g.key || g.badge);
+          if (linkedEntry?.eventRefs?.length) lines.push(`  Linked events across loaded object: ${linkedEntry.eventRefs.map((ref) => `EventId ${ref.id}`).join(', ')}`);
+          if (g.tactics.length) lines.push(`  Tactics: ${g.tactics.join(', ')}`);
+          if (g.techniques.length) lines.push(`  Techniques: ${g.techniques.join(', ')}`);
+          if (g.subtechniques.length) lines.push(`  Sub-techniques: ${g.subtechniques.join(', ')}`);
+          if (g.analytics.length) lines.push(`  Analytics: ${g.analytics.join(', ')}`);
+          if (g.strategyDescriptions.length) lines.push(`  Strategy description: ${g.strategyDescriptions.join(' | ')}`);
+          if (g.analyticDescriptions.length) lines.push(`  Analytic description: ${g.analyticDescriptions.join(' | ')}`);
+          if (g.mutableElements.length) lines.push(`  Mutable elements: ${g.mutableElements.join(' | ')}`);
+          if (g.logSources.length) lines.push(`  Log sources: ${g.logSources.join(', ')}`);
+          if (g.channels.length) lines.push(`  Channels: ${g.channels.join(', ')}`);
+          if (g.platforms.length) lines.push(`  Platforms: ${g.platforms.join(', ')}`);
+        });
+      }
+      return lines.join('\n');
+    }
+    function renderLooseValue(value) {
+      const text = stringifyLoose(value);
+      if (!text) return '<div class="small">—</div>';
+      if (Array.isArray(value) && value.every((v) => typeof v === 'string')) return `<div>${escapeHtml(value.join(', '))}</div>`;
+      if (typeof value === 'object' && value !== null) return `<pre>${escapeHtml(text)}</pre>`;
+      return `<div class="mono">${escapeHtml(text)}</div>`;
+    }
+    function buildDiagnosticsSection(item) {
+      let html = '<div class="chips">';
+      html += `<span class="chip"><strong>Record state</strong>${escapeHtml(item._hasError ? 'Error' : (item._hasTemplate ? 'Ready' : 'Sparse'))}</span>`;
+      html += `<span class="chip"><strong>Template XML</strong>${escapeHtml(item._hasTemplate ? 'Present' : 'Missing')}</span>`;
+      html += `<span class="chip"><strong>Version</strong>${escapeHtml(item.version)}</span>`;
+      html += `<span class="chip"><strong>Event identifier</strong>${escapeHtml(item.event_identifier)}</span>`;
+      if (String(item.qualifiers).trim() && String(item.qualifiers).trim() !== '0') html += `<span class="chip"><strong>Qualifiers</strong>${escapeHtml(item.qualifiers)}</span>`;
+      if (formatMeta(item.level)) html += `<span class="chip"><strong>Level</strong>${escapeHtml(formatMeta(item.level))}</span>`;
+      if (formatMeta(item.task)) html += `<span class="chip"><strong>Task</strong>${escapeHtml(formatMeta(item.task))}</span>`;
+      if (formatMeta(item.opcode)) html += `<span class="chip"><strong>Opcode</strong>${escapeHtml(formatMeta(item.opcode))}</span>`;
+      if (item.keywordsdisplayNames.length) html += `<span class="chip"><strong>Keywords</strong>${escapeHtml(item.keywordsdisplayNames.length)}</span>`;
+      if (item.log_links.length) html += `<span class="chip"><strong>Log links</strong>${escapeHtml(item.log_links.length)}</span>`;
+      if (item._hasError) html += `<span class="chip"><strong>Error</strong>Present</span>`;
+      if (item._extraKeys.length) html += `<span class="chip"><strong>Extra fields</strong>${escapeHtml(item._extraKeys.length)}</span>`;
+      html += '</div>';
+      if (item.error) html += `<pre>${escapeHtml(item.error)}</pre>`;
+      return html;
+    }
+    function buildExtraFieldsSection(item) {
+      if (!item._extraKeys.length) return '<div class="small">No additional fields beyond the modeled message schema.</div>';
+      let html = '<div class="extraList">';
+      item._extraKeys.forEach((key) => { html += `<div class="extraItem"><div class="k">${escapeHtml(key)}</div>${renderLooseValue(item._extras[key])}</div>`; });
+      html += '</div>';
+      return html;
+    }
+    function buildSchemaSection(item) {
+      const strategyLabels = zipIdNameLabels(item.mitre_detection_strategy_ids, item.mitre_detection_strategy_names);
+      let html = '<div class="ruleList">';
+      html += `<details class="ruleCard" open><summary class="ruleSummary"><span class="ruleId mono">CORE</span><span class="ruleMsg">Identity / routing</span><span class="ruleBadge on">Schema</span></summary><div class="ruleBody"><div class="ruleKv">
+        <div class="k">EventId</div><div class="mono">${escapeHtml(item.id)}</div>
+        <div class="k">Event identifier</div><div class="mono">${escapeHtml(item.event_identifier)}</div>
+        <div class="k">Qualifiers</div><div class="mono">${escapeHtml(item.qualifiers)}</div>
+        <div class="k">Provider</div><div>${escapeHtml(item.provider || '—')}</div>
+        <div class="k">Source</div><div>${escapeHtml(item.source || '—')}</div>
+        <div class="k">Sources</div><div>${escapeHtml(item.sources || '—')}</div>
+        <div class="k">Classic sources</div><div>${escapeHtml(item.classic_sources || '—')}</div>
+        <div class="k">Version</div><div class="mono">${escapeHtml(item.version)}</div>
+        <div class="k">template_hash</div><div class="mono">${escapeHtml(item.template_hash || '—')}</div>
+      </div></div></details>`;
+      html += renderEventMetaCard('Level', item.level);
+      html += renderEventMetaCard('Task', item.task);
+      html += renderEventMetaCard('Opcode', item.opcode);
+      html += `<details class="ruleCard"><summary class="ruleSummary"><span class="ruleId mono">AUX</span><span class="ruleMsg">Keywords / links / template</span><span class="ruleBadge on">${escapeHtml((item.keywordsdisplayNames.length || item.log_links.length || item._fields.length) ? 'Present' : 'Sparse')}</span></summary><div class="ruleBody"><div class="ruleKv">
+        <div class="k">Keywords</div><div>${escapeHtml(item.keywordsdisplayNames.join(', ') || '—')}</div>
+        <div class="k">Log links</div><div>${renderLinkList(item.log_links)}</div>
+        <div class="k">Template fields</div><div>${escapeHtml(item._fields.join(', ') || '—')}</div>
+        <div class="k">Message preview</div><div>${escapeHtml(item._msg || '—')}</div>
+      </div></div></details>`;
+      if (item._hasMitre) {
+        html += `<details class="ruleCard"><summary class="ruleSummary"><span class="ruleId mono">MITRE</span><span class="ruleMsg">Top-level schema mappings</span><span class="ruleBadge on">${escapeHtml(item.mitre_match_count || item._mitre_strategy_ids.length || item.mitre_tactic_ids.length || 'Y')}</span></summary><div class="ruleBody"><div class="ruleKv">`;
+        html += `<div class="k">Tactic IDs</div><div class="mono">${escapeHtml(item.mitre_tactic_ids.join(', ') || '—')}</div>`;
+        html += `<div class="k">Technique IDs</div><div class="mono">${escapeHtml(item.mitre_technique_ids.join(', ') || '—')}</div>`;
+        html += `<div class="k">Sub-technique IDs</div><div class="mono">${escapeHtml(item.mitre_subtechnique_ids.join(', ') || '—')}</div>`;
+        html += `<div class="k">Detection strategy IDs</div><div class="mono">${escapeHtml(item.mitre_detection_strategy_ids.join(', ') || '—')}</div>`;
+        html += `<div class="k">Detection strategy names</div><div>${escapeHtml(strategyLabels.join(', ') || '—')}</div>`;
+        html += `<div class="k">Analytic IDs</div><div class="mono">${escapeHtml(item.mitre_analytic_ids.join(', ') || '—')}</div>`;
+        html += `<div class="k">Data component IDs</div><div class="mono">${escapeHtml(item.mitre_data_component_ids.join(', ') || '—')}</div>`;
+        html += `<div class="k">Data component names</div><div>${escapeHtml(item.mitre_data_component_names.join(', ') || '—')}</div>`;
+        html += `</div></div></details>`;
+      }
+      if (item._extraKeys.length) {
+        html += `<details class="ruleCard"><summary class="ruleSummary"><span class="ruleId mono">EXTRA</span><span class="ruleMsg">Additional schema keys</span><span class="ruleBadge on">${escapeHtml(item._extraKeys.length)}</span></summary><div class="ruleBody"><div class="ruleKv"><div class="k">Keys</div><div class="mono">${escapeHtml(item._extraKeys.join(', '))}</div></div></div></details>`;
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function openDrawer(key) {
+      const item = state.byKey[key];
+      if (!item) return;
+      closeMitreFocusPanel();
+      state._lastDetailItem = item;
+      drawerTitle.textContent = `EventId ${item.id}`;
+      drawerSub.textContent = `${item.provider || ''} | ${item.source || ''}`;
+      drawerBody.innerHTML = `
+        <div id="detailDiagnostics">${buildDiagnosticsSection(item)}</div>
+
+        <div class="sectionTitle">Schema summary</div>
+        <div id="detailSchema">${buildSchemaSection(item)}</div>
+
+        <div class="sectionTitle">MITRE ATT&amp;CK</div>
+        <div id="detailMitre">${buildMitreSection(item)}</div>
+        <div class="small">Uses top-level schema mappings plus detailed tactic, technique, sub-technique, detection strategy, analytic, data component, log source/channel, platform, URL, description, and mutable-element fields when present.</div>
+
+        <div class="sectionTitle">Rules (CA)</div>
+        <div id="detailRules">${buildRulesSection(item)}</div>
+        <div class="small">${state.rules ? 'Match strategy: metaclass:windows plus eventid extracted from search and tuningSearch (eventid=... or eventid:[...]).' : 'Tip: import ca_rules.json to see rule decorations.'}</div>
+
+        <div class="sectionTitle">Field transforms (SIEM taxonomy)</div>
+        <div id="detailTransforms">${buildTransformsSection(item)}</div>
+
+        <div class="sectionTitle">Message (first line)</div>
+        <pre>${escapeHtml(item._msg || '—')}</pre>
+        <div class="sectionTitle">Description (full)</div>
+        <pre>${escapeHtml(item.description || '—')}</pre>
+        <div class="sectionTitle">Error text</div>
+        <pre>${escapeHtml(item.error || '—')}</pre>
+        <div class="sectionTitle">Template fields (%1..%N mapping)</div>
+        <pre>${escapeHtml(buildFieldMapText(item))}</pre>
+        <div class="sectionTitle">Template XML</div>
+        <pre>${escapeHtml(item.template || '—')}</pre>
+        <div class="sectionTitle">Additional object fields</div>
+        <div id="detailExtras">${buildExtraFieldsSection(item)}</div>
+        <div class="sectionTitle">Raw object JSON</div>
+        <pre>${escapeHtml(JSON.stringify(item._raw, null, 2))}</pre>`;
+      bindTransformControls(item);
+      state.lastDetailText = [
+        `EventId: ${item.id}`,
+        `Event identifier: ${item.event_identifier}`,
+        `Qualifiers: ${item.qualifiers}`,
+        `Provider: ${item.provider}`,
+        `Source: ${item.source}`,
+        `Sources: ${item.sources}`,
+        `Classic sources: ${item.classic_sources}`,
+        `Version: ${item.version}`,
+        `Level: ${formatMeta(item.level) || ''}`,
+        `Task: ${formatMeta(item.task) || ''}`,
+        `Opcode: ${formatMeta(item.opcode) || ''}`,
+        `Keywords: ${item.keywordsdisplayNames.join(', ')}`,
+        `Log links: ${(item.log_links || []).join(', ')}`,
+        `template_hash: ${item.template_hash}`,
+        '', 'Message:', item._msg || '—', '', 'Description:', item.description || '—', '', 'Error:', item.error || '—',
+        '', 'Field mapping:', buildFieldMapText(item), '', 'Template XML:', item.template || '—',
+        rulesForEventId(item.id).length ? ['', 'Rules (CA):', rulesForEventId(item.id).map((r) => buildRuleSearchBlob(r)).join('\n---\n')] : [],
+        buildMitreDetailText(item) ? ['', 'MITRE ATT&CK:', buildMitreDetailText(item)] : [],
+        item._extraKeys.length ? ['', 'Additional object fields:', JSON.stringify(item._extras, null, 2)] : [],
+        '', 'Raw object JSON:', JSON.stringify(item._raw, null, 2)
+      ].flat().join('\n');
+      setDrawerOpen(true);
+    }
+    function bindTransformControls(item) {
+      drawerBody.querySelectorAll('select.field-map').forEach((sel) => {
+        const win = sel.dataset.win;
+        sel.value = state.mapping[win] || '';
+        const typeCell = sel.closest('tr')?.querySelector('.type-cell');
+        sel.addEventListener('change', () => {
+          if (sel.value) state.mapping[win] = sel.value; else delete state.mapping[win];
+          saveMapping();
+          const h = state.taxonomy?.byName?.[sel.value] || null;
+          if (typeCell) typeCell.textContent = h?.type || '';
+        });
+      });
+      const copyTransformBtn = $('copyTransformBtn');
+      if (copyTransformBtn) copyTransformBtn.addEventListener('click', () => {
+        const payload = item._fields.map((f, i) => ({ token: `%${i+1}`, windowsField: f, SiemField: state.mapping[f] || '' }));
+        copyText(JSON.stringify(payload, null, 2)).then(() => showToast('Copied mapping'));
+      });
+      const clearEventMapBtn = $('clearEventMapBtn');
+      if (clearEventMapBtn) clearEventMapBtn.addEventListener('click', () => {
+        item._fields.forEach((f) => delete state.mapping[f]);
+        saveMapping();
+        openDrawer(item._key);
+      });
+    }
+
+    function parseCsv(text) {
+      const rows = []; let row = [], cur = '', i = 0, inQuotes = false;
+      const pushField = () => { row.push(cur); cur = ''; };
+      const pushRow = () => { rows.push(row); row = []; };
+      while (i < text.length) {
+        const c = text[i];
+        if (inQuotes) {
+          if (c === '"') {
+            if (text[i + 1] === '"') { cur += '"'; i += 2; continue; }
+            inQuotes = false; i++; continue;
+          }
+          cur += c; i++; continue;
+        }
+        if (c === '"') { inQuotes = true; i++; continue; }
+        if (c === ',') { pushField(); i++; continue; }
+        if (c === '\n') { pushField(); pushRow(); i++; continue; }
+        if (c === '\r') { i++; continue; }
+        cur += c; i++;
+      }
+      pushField(); if (row.length > 1 || row[0] !== '') pushRow();
+      return rows;
+    }
+    function loadTaxonomyFromText(text, filename) {
+      const rows = parseCsv(text);
+      if (!rows.length) throw new Error('Taxonomy CSV appears to be empty.');
+      const header = rows[0].map((h) => h.trim().toLowerCase());
+      const idxName = header.indexOf('name');
+      const idxType = header.indexOf('type');
+      const idxDesc = header.indexOf('description');
+      if (idxName < 0) throw new Error('Expected a name column in taxonomy CSV.');
+      const fields = []; const byName = Object.create(null);
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i]; const name = cleanText(r[idxName]).trim(); if (!name) continue;
+        const rec = { name, type: cleanText(r[idxType]).trim(), description: cleanText(r[idxDesc]).trim() };
+        fields.push(rec); byName[name] = rec;
+      }
+      const opts = ['<option value="">—</option>'].concat(fields.map((f) => `<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)}</option>`)).join('');
+      state.taxonomy = { fields, byName, optionsHtml: opts, filename };
+      updateCounts(); showToast(`Taxonomy loaded (${fields.length} fields)`);
+      if (state._lastDetailItem) openDrawer(state._lastDetailItem._key);
+    }
+    function extractEventIdsFromSearch(search) {
+      const ids = new Set(); let m;
+      const s = String(search || '');
+      const rx1 = /eventid\s*[:=]\s*([0-9]{1,6})\b/ig;
+      while ((m = rx1.exec(s)) !== null) ids.add(Number.parseInt(m[1], 10));
+      const rx2 = /eventid\s*[:=]\s*\[([0-9,\s]+)\]/ig;
+      while ((m = rx2.exec(s)) !== null) m[1].split(',').forEach((p) => { if (/^\d+$/.test(p.trim())) ids.add(Number.parseInt(p.trim(), 10)); });
+      return [...ids].sort((a,b) => a-b);
+    }
+    function normalizeRuleOutputs(value) {
+      return uniqueStrings(Array.isArray(value) ? value : (value == null ? [] : [value])).map((x) => cleanText(x));
+    }
+    function buildRuleSearchBlob(rule) {
+      const outputs = normalizeRuleOutputs(rule?.output);
+      return [
+        rule?.id ? `Rule ID: ${rule.id}` : '',
+        rule?.message ? `Message: ${rule.message}` : '',
+        rule?.description ? `Description: ${rule.description}` : '',
+        Array.isArray(rule?.queues) && rule.queues.length ? `Queues: ${rule.queues.join(', ')}` : '',
+        rule?.search ? `Search: ${rule.search}` : '',
+        rule?.tuningSearch ? `Tuning search: ${rule.tuningSearch}` : '',
+        Array.isArray(rule?.tags) && rule.tags.length ? `Tags: ${rule.tags.join(', ')}` : '',
+        Array.isArray(rule?.distinguishers) && rule.distinguishers.length ? `Distinguishers: ${rule.distinguishers.join(', ')}` : '',
+        rule?.confidence ? `Confidence: ${rule.confidence}` : '',
+        rule?.risk ? `Risk: ${rule.risk}` : '',
+        rule?.severity ? `Severity: ${rule.severity}` : '',
+        `Enabled: ${rule?.enabled != null ? (!!rule.enabled ? 'true' : 'false') : 'true'}`,
+        `Deleted: ${rule?.deleted != null ? (!!rule.deleted ? 'true' : 'false') : 'false'}`,
+        outputs.length ? `Output: ${outputs.join(', ')}` : 'Output: none'
+      ].filter(Boolean).join(' | ');
+    }
+    function renderRuleBoolBadge(label, value, trueClass = 'on', falseClass = 'off') {
+      return `<span class="ruleBadge ${value ? trueClass : falseClass}">${escapeHtml(label + ': ' + (value ? 'Yes' : 'No'))}</span>`;
+    }
+    function renderRuleOutputBadges(outputs) {
+      const list = normalizeRuleOutputs(outputs);
+      const values = list.length ? list : ['none'];
+      return values.map((out) => {
+        const cls = /^alert$/i.test(out) ? 'on' : (/^none$/i.test(out) ? 'off' : 'neutral');
+        return `<span class="ruleBadge ${cls}">${escapeHtml('Output: ' + out)}</span>`;
+      }).join('');
+    }
+    function renderRuleMetaChips(values, label) {
+      const arr = uniqueStrings(values);
+      if (!arr.length) return '—';
+      return `<div class="ruleMetaList">${arr.map((v) => `<span class="ruleMetaChip"><strong>${escapeHtml(label)}</strong>${escapeHtml(v)}</span>`).join('')}</div>`;
+    }
+    function loadRulesFromText(text, filename) {
+      const parsed = JSON.parse(text);
+      const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.rules) ? parsed.rules : Array.isArray(parsed?.items) ? parsed.items : [parsed];
+      const byEventId = Object.create(null);
+      let windowsCount = 0, withEventIdCount = 0;
+      arr.forEach((r, i) => {
+        const search = String(r?.search || '');
+        const tuningSearch = String(r?.tuningSearch || '');
+        const linkProbe = [search, tuningSearch].filter(Boolean).join(' || ');
+        if (!/\bmetaclass:windows\b/i.test(linkProbe)) return;
+        windowsCount++;
+        const eids = [...new Set([...extractEventIdsFromSearch(search), ...extractEventIdsFromSearch(tuningSearch)])].filter((x) => Number.isFinite(x));
+        if (!eids.length) return;
+        withEventIdCount++;
+        const summary = {
+          id: String(r?.id || r?.hash || `rule_${i}`),
+          message: String(r?.message || r?.name || ''),
+          description: String(r?.description || ''),
+          enabled: r?.enabled != null ? !!r.enabled : true,
+          deleted: !!r?.deleted,
+          queues: Array.isArray(r?.queues) ? r.queues.map(String) : [],
+          search,
+          tuningSearch,
+          tags: Array.isArray(r?.tags) ? r.tags.map(String) : [],
+          distinguishers: Array.isArray(r?.distinguishers) ? r.distinguishers.map(String) : [],
+          confidence: String(r?.confidence || ''),
+          risk: String(r?.risk || ''),
+          severity: String(r?.severity || ''),
+          output: normalizeRuleOutputs(r?.output)
+        };
+        eids.forEach((eid) => { if (!byEventId[eid]) byEventId[eid] = []; byEventId[eid].push(summary); });
+      });
+      const searchTextByEventId = Object.create(null);
+      Object.keys(byEventId).forEach((eid) => {
+        searchTextByEventId[eid] = (byEventId[eid] || []).map((r) => buildRuleSearchBlob(r)).filter(Boolean).join(' || ');
+      });
+      state.rules = { count: arr.length, windowsCount, withEventIdCount, byEventId, searchTextByEventId, filename };
+      updateCounts(); updateToggleHints(); renderTable();
+      if (state._lastDetailItem) openDrawer(state._lastDetailItem._key);
+      showToast(`Rules loaded (Windows: ${windowsCount})`);
+    }
+    function loadTemplatesFromText(text, filename) {
+      const parsed = JSON.parse(text);
+      const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.events) ? parsed.events : parsed && typeof parsed === 'object' ? [parsed] : null;
+      if (!arr) throw new Error('Unexpected JSON shape. Expected an array, {events:[...]}, or a single object.');
+      state.events = arr.map(normalizeEvent);
+      state.byKey = Object.create(null);
+      state.events.forEach((e) => { state.byKey[e._key] = e; });
+      state.mitreIndex = buildMitreIndex(state.events);
+      state.loadedCount = state.events.length;
+      state.mitreCoveredCount = state.events.filter((e) => e._hasMitre).length;
+      state.errorCount = state.events.filter((e) => e._hasError).length;
+      populateSelect(providerSelect, [...new Set(state.events.map((e) => e.provider).filter(Boolean))].sort());
+      populateSelect(sourceSelect, [...new Set(state.events.map((e) => e.source).filter(Boolean))].sort());
+      const detCount = state.mitreIndex?.['detection-strategies']?.size || 0;
+      disableUi(false); setStatus(`Loaded ${state.loadedCount} records (${state.mitreCoveredCount} MITRE-covered, ${detCount} detection strategies, ${state.errorCount} errors)`); setWarning('');
+      applyFilters(true);
+      showToast(filename ? `Loaded ${filename}` : 'Templates loaded');
+    }
+
+    function wireFilters() {
+      const rerun = () => applyFilters(true);
+      [providerSelect, sourceSelect, providerContains, providerCase, sourceContains, sourceCase, fieldsMatchAll, fieldsCase, onlyErrorsToggle, onlyEnrichedToggle, onlyMitreToggle].forEach((el) => el.addEventListener('change', rerun));
+      [globalSearchInput, eventIdInput, descInput, objectSearchInput, fieldsInput, mitreInput].forEach((el) => el.addEventListener('input', rerun));
+      pageSizeEl.addEventListener('change', () => { state.pageSize = Number.parseInt(pageSizeEl.value, 10) || 100; applyFilters(true); });
+    }
+
+    prevBtn.addEventListener('click', () => { if (state.page > 1) { state.page--; renderTable(); } });
+    nextBtn.addEventListener('click', () => { state.page++; renderTable(); });
+    viewErrorsBtn.addEventListener('click', openErrorSummary);
+    if (toggleSidebarBtn) toggleSidebarBtn.addEventListener('click', () => applySidebarVisibility(!contentLayout?.classList.contains('sidebarHidden')));
+    clearBtn.addEventListener('click', () => {
+      globalSearchInput.value = ''; providerSelect.value = ''; sourceSelect.value = ''; eventIdInput.value = ''; descInput.value = ''; objectSearchInput.value = ''; fieldsInput.value = ''; mitreInput.value = '';
+      providerContains.checked = true; providerCase.checked = false; sourceContains.checked = true; sourceCase.checked = false;
+      fieldsMatchAll.checked = false; fieldsCase.checked = false; onlyErrorsToggle.checked = false; onlyEnrichedToggle.checked = false; onlyMitreToggle.checked = false;
+      applyFilters(true);
+    });
+    exportBtn.addEventListener('click', () => {
+      if (!state.lastItems.length) return;
+      const lines = [[
+        'EventId','EventIdentifier','Qualifiers','Source','Sources','ClassicSources','Provider','Version',
+        'Level','Task','Opcode','Keywords','LogLinks','State','Message','Error','TemplateFieldsSummary',
+        'RulesCount','MitreMatchCount','MitreTacticIds','MitreTechniqueIds','MitreSubtechniqueIds',
+        'MitreStrategyIds','MitreStrategyNames','MitreAnalyticIds','MitreDataComponentIds','MitreDataComponentNames',
+        'template_hash'
+      ].join(',')];
+      state.lastItems.forEach((it) => {
+        lines.push([
+          escapeCsv(it.id), escapeCsv(it.event_identifier), escapeCsv(it.qualifiers), escapeCsv(it.source), escapeCsv(it.sources), escapeCsv(it.classic_sources), escapeCsv(it.provider), escapeCsv(it.version),
+          escapeCsv(formatMeta(it.level)), escapeCsv(formatMeta(it.task)), escapeCsv(formatMeta(it.opcode)), escapeCsv(it.keywordsdisplayNames.join(', ')), escapeCsv(it.log_links.join(', ')),
+          escapeCsv(it._hasError ? 'Error' : (it._hasTemplate ? 'Ready' : 'Sparse')), escapeCsv(it._msg), escapeCsv(it.error), escapeCsv(summarizeFields(it._fields)),
+          escapeCsv(rulesForEventId(it.id).length || ''), escapeCsv(it.mitre_match_count || ''), escapeCsv(it.mitre_tactic_ids.join(', ')),
+          escapeCsv(it.mitre_technique_ids.join(', ')), escapeCsv(it.mitre_subtechnique_ids.join(', ')), escapeCsv(it.mitre_detection_strategy_ids.join(', ')),
+          escapeCsv(it.mitre_detection_strategy_names.join(', ')), escapeCsv(it._mitre_analytic_ids.join(', ')), escapeCsv(it.mitre_data_component_ids.join(', ')),
+          escapeCsv(it.mitre_data_component_names.join(', ')), escapeCsv(it.template_hash)
+        ].join(','));
+      });
+      downloadText(`event_templates_page_${state.page}.csv`, lines.join('\n'));
+    });
+    exportMapBtn.addEventListener('click', () => downloadText('siem_field_mappings.json', JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), mapping: state.mapping }, null, 2)));
+    importMapInput.addEventListener('change', () => {
+      const f = importMapInput.files?.[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result || '{}'));
+          state.mapping = parsed.mapping || parsed || {};
+          saveMapping(); showToast('Mappings imported');
+          if (state._lastDetailItem) openDrawer(state._lastDetailItem._key);
+        } catch (e) { setWarning(`Mapping import error: ${e.message || e}`); }
+      };
+      reader.readAsText(f); importMapInput.value = '';
+    });
+    fileInput.addEventListener('change', async () => {
+      const f = fileInput.files?.[0]; if (!f) return;
+      setStatus('Reading templates file…');
+      try {
+        const buffer = await f.arrayBuffer();
+        const loaded = await readTextFromMaybeZip(buffer, f.name);
+        loadTemplatesFromText(loaded.text, loaded.entryName || f.name);
+      } catch (e) {
+        setWarning(e.message || String(e)); setStatus('Error');
+      } finally {
+        fileInput.value = '';
+      }
+    });
+    taxonomyInput.addEventListener('change', () => {
+      const f = taxonomyInput.files?.[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => { try { loadTaxonomyFromText(String(reader.result || ''), f.name); } catch (e) { setWarning(e.message || String(e)); } };
+      reader.readAsText(f); taxonomyInput.value = '';
+    });
+    rulesInput.addEventListener('change', () => {
+      const f = rulesInput.files?.[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => { try { loadRulesFromText(String(reader.result || ''), f.name); } catch (e) { setWarning(e.message || String(e)); } };
+      reader.readAsText(f); rulesInput.value = '';
+    });
+    drawerBody.addEventListener('click', (ev) => {
+      const trigger = ev.target.closest('[data-mitre-action]');
+      if (!trigger || !state._lastDetailItem) return;
+      ev.preventDefault();
+      openMitreFocus(state._lastDetailItem, trigger.dataset.mitreLevel || 'match-records', trigger.dataset.mitreKey || '');
+    });
+    closeDrawer.addEventListener('click', () => setDrawerOpen(false));
+    closeMitreFocus.addEventListener('click', closeMitreFocusPanel);
+    mitreFocusBody.addEventListener('click', (ev) => {
+      const trigger = ev.target.closest('[data-open-event-key]');
+      if (!trigger) return;
+      ev.preventDefault();
+      const key = trigger.getAttribute('data-open-event-key');
+      closeMitreFocusPanel();
+      openDrawer(key);
+    });
+    mitreFocusOverlay.addEventListener('click', (ev) => { if (ev.target === mitreFocusOverlay) closeMitreFocusPanel(); });
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Escape') return;
+      if (mitreFocusOverlay.classList.contains('open')) { closeMitreFocusPanel(); return; }
+      setDrawerOpen(false);
+    });
+    copyBtn.addEventListener('click', () => copyText(state.lastDetailText).then(() => showToast('Copied details')));
+    copyMitreBtn.addEventListener('click', () => copyText(state.lastMitreFocusText).then(() => showToast('Copied MITRE section')));
+
+    if (drawerResizeHandle) {
+      drawerResizeHandle.addEventListener('pointerdown', (ev) => {
+        if (!drawer || !drawer.classList.contains('open')) return;
+        ev.preventDefault();
+        const startX = ev.clientX;
+        const startWidth = clampDrawerWidth(state.drawerWidth || loadSavedDrawerWidth() || getDrawerBounds().fallback);
+        drawer.classList.add('resizing');
+        try { drawerResizeHandle.setPointerCapture(ev.pointerId); } catch {}
+        const onMove = (moveEv) => {
+          const delta = startX - moveEv.clientX;
+          applyDrawerWidth(startWidth + delta, false);
+        };
+        const onUp = (upEv) => {
+          drawer.classList.remove('resizing');
+          try { drawerResizeHandle.releasePointerCapture(upEv.pointerId); } catch {}
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          applyDrawerWidth(state.drawerWidth || startWidth, true);
+        };
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      });
+    }
+
+    wireFilters();
+    applySidebarVisibility(loadSidebarHidden());
+    state.drawerWidth = loadSavedDrawerWidth() || getDrawerBounds().fallback;
+    applyDrawerWidth(state.drawerWidth, false);
+    disableUi(true);
+    updateCounts();
+    updateToggleHints();
+    syncResponsiveLayout();
+    window.addEventListener('resize', syncResponsiveLayout, { passive: true });
+  })();
+  </script>
+</body>
+</html>
